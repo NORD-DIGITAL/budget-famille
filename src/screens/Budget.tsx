@@ -52,14 +52,14 @@ export function BudgetPage() {
     return (
       <button onClick={() => setEdit({ b, catId: b.category_id, amount: b.monthly_amount.toLocaleString('fr-FR'), mode: b.category_id ? 'cat' : 'global' })} className="w-full px-3 py-3 text-left">
         <div className="mb-2 flex items-center gap-3">
-          <IconBubble icon={c?.icon ?? '💰'} color={c?.color ?? '#c2317a'} size={36} />
+          <IconBubble name={c?.name ?? ''} icon={c?.icon ?? '💰'} color={c?.color ?? '#FFCC00'} size={36} />
           <div className="flex-1">
             <p className="font-medium">{c?.name ?? 'Budget global du mois'}</p>
-            <p className={`text-xs ${left < 0 ? 'text-red-600' : pace ? 'text-amber-600' : 'text-slate-400'}`}>
+            <p className={`text-xs ${left < 0 ? 'text-red-600' : pace ? 'text-amber-600' : 'text-neutral-400'}`}>
               {left < 0 ? `Dépassé de ${fmt(-left, cur)}` : `Reste ${fmt(left, cur)}${pace ? ' · rythme trop rapide' : ''}`}
             </p>
           </div>
-          <div className="text-right text-sm"><p className="font-semibold">{fmt(s, cur)}</p><p className="text-xs text-slate-400">/ {fmt(b.monthly_amount, cur)}</p></div>
+          <div className="text-right text-sm"><p className="font-semibold">{fmt(s, cur)}</p><p className="text-xs text-neutral-400">/ {fmt(b.monthly_amount, cur)}</p></div>
         </div>
         <Progress value={s} max={b.monthly_amount} color={pace ? '#f59e0b' : c?.color} />
       </button>
@@ -69,7 +69,7 @@ export function BudgetPage() {
   const usedCats = new Set(perCat.map((b) => b.category_id))
   return (
     <div className="space-y-4 p-4">
-      <p className="px-1 text-sm text-slate-500">{monthLabel(month)} — budgets mensuels, reconduits chaque mois.</p>
+      <p className="px-1 text-sm text-neutral-500">{monthLabel(month)} — budgets mensuels, reconduits chaque mois.</p>
       {global ? <div className="card"><Row b={global} /></div> : (
         <button onClick={() => setEdit({ b: null, catId: null, amount: '', mode: 'global' })} className="card flex w-full items-center gap-3 p-4 text-left text-brand-600"><Plus size={20} /> Définir un budget global mensuel</button>
       )}
@@ -78,7 +78,7 @@ export function BudgetPage() {
         <button onClick={() => setEdit({ b: null, catId: categories.find((c) => c.kind === 'depense' && !usedCats.has(c.id))?.id ?? null, amount: '', mode: 'cat' })} className="flex items-center gap-1 text-sm font-medium text-brand-600"><Plus size={16} /> Ajouter</button>
       </div>
       {perCat.length === 0 ? <Empty icon="🎯" text="Fixe un plafond pour les catégories à surveiller (Alimentation, Transport…)." /> : (
-        <div className="card divide-y divide-slate-100">{perCat.map((b) => <Row key={b.id} b={b} />)}</div>
+        <div className="card divide-y divide-neutral-100">{perCat.map((b) => <Row key={b.id} b={b} />)}</div>
       )}
 
       <Sheet open={!!edit} onClose={() => setEdit(null)} title={edit?.b ? 'Modifier le budget' : 'Nouveau budget'}>
@@ -152,17 +152,17 @@ export function GoalsPage() {
         return (
           <div key={g.id} className="card p-4">
             <button onClick={() => setEdit({ g, name: g.name, icon: g.icon, target: g.target_amount.toLocaleString('fr-FR'), deadline: g.deadline ?? '' })} className="mb-3 flex w-full items-center gap-3 text-left">
-              <IconBubble icon={g.icon} color="#c2317a" size={44} />
+              <IconBubble icon={g.icon} color="#FFCC00" size={44} />
               <div className="flex-1">
                 <p className="font-semibold">{g.name}</p>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-neutral-400">
                   {done ? 'Objectif atteint 🎉' : g.deadline ? `${fmt(Math.ceil(left / monthsLeft(g.deadline)), cur)} / mois jusqu'au ${new Date(g.deadline + 'T00:00:00').toLocaleDateString('fr-FR')}` : `Reste ${fmt(left, cur)}`}
                 </p>
               </div>
               <span className="text-sm font-semibold">{Math.min(100, Math.round((g.saved_amount / g.target_amount) * 100))}%</span>
             </button>
-            <Progress value={g.saved_amount} max={g.target_amount} color="#c2317a" />
-            <div className="mt-2 flex justify-between text-sm"><span className="font-semibold">{fmt(g.saved_amount, cur)}</span><span className="text-slate-400">{fmt(g.target_amount, cur)}</span></div>
+            <Progress value={g.saved_amount} max={g.target_amount} color="#FFCC00" />
+            <div className="mt-2 flex justify-between text-sm"><span className="font-semibold">{fmt(g.saved_amount, cur)}</span><span className="text-neutral-400">{fmt(g.target_amount, cur)}</span></div>
             <div className="mt-3 flex gap-2">
               <button onClick={() => setAdd({ g, amount: '', sign: 1 })} className="btn-primary flex-1 py-2 text-sm">+ Épargner</button>
               <button onClick={() => setAdd({ g, amount: '', sign: -1 })} className="btn-ghost py-2 text-sm">Retirer</button>

@@ -4,9 +4,13 @@ export default {
   theme: {
     extend: {
       colors: {
-        brand: { 50:'#fdf2f8',100:'#fce7f3',400:'#e0569a',500:'#c2317a',600:'#a3205f',700:'#83194c' },
+        // brand = encre (texte/actions) ; sun = jaune d'accent
+        brand: { 50: '#FFF8D6', 100: '#FFEFA3', 400: '#FFD83D', 500: '#FFCC00', 600: '#141414', 700: '#000000' },
+        sun: { 50: '#FFFBEA', 100: '#FFF3C2', 300: '#FFE066', 400: '#FFD60A', 500: '#FFCC00', 600: '#E6B800' },
+        ink: { DEFAULT: '#141414', soft: '#3A3A3A', muted: '#767676' },
+        cream: { DEFAULT: '#FFFCF2', tile: '#FEFAEC', line: '#F1E9CC' },
       },
-      fontFamily: { sans: ['Inter','system-ui','sans-serif'] },
+      fontFamily: { sans: ['Poppins', 'system-ui', 'sans-serif'] },
     },
   },
   plugins: [],

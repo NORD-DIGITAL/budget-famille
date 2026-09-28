@@ -1,10 +1,14 @@
 import { useMemo } from 'react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useData } from '../lib/data'
 import { fmt, monthLabel } from '../lib/format'
-import { Header, IconBubble } from '../components/ui'
+import { useHidden } from '../lib/prefs'
+import { Header, IconTile } from '../components/ui'
 
 export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'comptes' | 'membres') => void }) {
-  const { accounts, members, txs, cur, month } = useData()
+  const { accounts, members, txs, cur, month, carnet } = useData()
+  const [hidden, toggleHidden] = useHidden()
+  const mask = (s: string) => (hidden ? '••••••' : s)
 
   const balances = useMemo(() => {
     const m = new Map<string | null, number>()
@@ -15,7 +19,6 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
     }
     return m
   }, [accounts, txs])
-
   const total = [...balances.values()].reduce((a, b) => a + b, 0)
   const unassigned = balances.get(null) ?? 0
 
@@ -31,57 +34,68 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
 
   return (
     <>
-      <Header title="Portefeuille">
-        <div className="px-4 pb-5 text-center">
-          <p className="text-sm text-white/70">Valeur nette</p>
-          <p className="text-3xl font-bold">{fmt(total, cur)}</p>
-        </div>
-      </Header>
-      <div className="space-y-5 p-4">
-        <section>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <h2 className="font-semibold">Comptes</h2>
-            <button onClick={() => onManage('comptes')} className="text-sm font-medium text-brand-600">Gérer</button>
+      <Header title="Portefeuille" />
+      <div className="space-y-7 px-5 pb-6">
+        {/* Carte valeur nette */}
+        <div className="relative overflow-hidden rounded-[28px] bg-sun-500 p-6">
+          <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border-[18px] border-white/25" />
+          <div className="absolute -bottom-16 right-10 h-32 w-32 rounded-full bg-white/15" />
+          <p className="relative text-sm font-medium">{carnet?.name}</p>
+          <p className="relative mt-6 text-sm">Valeur nette</p>
+          <div className="relative flex items-center gap-3">
+            <p className="tabular text-[32px] font-semibold tracking-tight">{mask(fmt(total, ''))}<span className="ml-1.5 text-xl">{cur}</span></p>
+            <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white/30">
+              {hidden ? <Eye size={22} strokeWidth={1.8} /> : <EyeOff size={22} strokeWidth={1.8} />}
+            </button>
           </div>
-          <div className="card divide-y divide-slate-100">
+        </div>
+
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="section-title">Comptes</h2>
+            <button onClick={() => onManage('comptes')} className="pill">Gérer</button>
+          </div>
+          <div>
             {accounts.filter((a) => !a.archived).map((a) => {
               const b = balances.get(a.id) ?? 0
               return (
-                <div key={a.id} className="flex items-center gap-3 px-3 py-3">
-                  <IconBubble icon={a.icon} color="#8b5cf6" />
-                  <span className="flex-1 font-medium">{a.name}</span>
-                  <span className={`font-semibold ${b < 0 ? 'text-red-600' : ''}`}>{fmt(b, cur)}</span>
+                <div key={a.id} className="flex items-center gap-4 border-b border-neutral-100 py-3.5 last:border-0">
+                  <IconTile name={a.name} emoji={a.icon} />
+                  <span className="flex-1 text-[17px]">{a.name}</span>
+                  <span className={`tabular font-semibold ${b < 0 && !hidden ? 'text-red-500' : ''}`}>{mask(fmt(b, cur))}</span>
                 </div>
               )
             })}
             {unassigned !== 0 && (
-              <div className="flex items-center gap-3 px-3 py-3 text-slate-500">
-                <IconBubble icon="❔" color="#64748b" />
+              <div className="flex items-center gap-4 py-3.5 text-ink-muted">
+                <IconTile name="" emoji="❔" />
                 <span className="flex-1">Sans compte</span>
-                <span className="font-semibold">{fmt(unassigned, cur)}</span>
+                <span className="tabular font-semibold">{mask(fmt(unassigned, cur))}</span>
               </div>
             )}
           </div>
-          <p className="mt-2 px-1 text-xs text-slate-400">Astuce : indique le solde de départ de chaque compte dans « Gérer ».</p>
+          <p className="mt-2 text-xs text-ink-muted">Astuce : indique le solde de départ de chaque compte dans « Gérer ».</p>
         </section>
 
         <section>
-          <div className="mb-2 flex items-center justify-between px-1">
-            <h2 className="font-semibold">Membres · {monthLabel(month)}</h2>
-            <button onClick={() => onManage('membres')} className="text-sm font-medium text-brand-600">Gérer</button>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="section-title">Membres <span className="text-sm font-normal text-ink-muted">· {monthLabel(month)}</span></h2>
+            <button onClick={() => onManage('membres')} className="pill">Gérer</button>
           </div>
-          <div className="card divide-y divide-slate-100">
+          <div className="space-y-4">
             {perMember.map(({ m, exp, inc }) => (
-              <div key={m.id} className="px-3 py-3">
-                <div className="mb-1.5 flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full font-semibold text-white" style={{ background: m.color }}>{m.name.charAt(0).toUpperCase()}</div>
-                  <span className="flex-1 font-medium">{m.name}</span>
-                  <div className="text-right text-sm">
-                    <p className="font-semibold">−{fmt(exp, cur)}</p>
-                    {inc > 0 && <p className="text-xs text-green-600">+{fmt(inc, cur)}</p>}
+              <div key={m.id} className="flex items-center gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink font-semibold text-white">{m.name.charAt(0).toUpperCase()}</div>
+                <div className="flex-1">
+                  <div className="flex justify-between">
+                    <span className="font-medium">{m.name}</span>
+                    <span className="tabular font-semibold">{mask('−' + fmt(exp, cur))}</span>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100"><div className="h-full rounded-full bg-sun-500" style={{ width: `${(exp / maxExp) * 100}%` }} /></div>
+                    {inc > 0 && <span className="tabular text-xs text-emerald-600">{mask('+' + fmt(inc, cur))}</span>}
                   </div>
                 </div>
-                <div className="ml-12 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full" style={{ width: `${(exp / maxExp) * 100}%`, background: m.color }} /></div>
               </div>
             ))}
           </div>

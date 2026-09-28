@@ -4,16 +4,21 @@
 
 :root { color-scheme: light; }
 html, body, #root { height: 100%; }
-body { @apply bg-slate-50 text-slate-800 antialiased; font-family: Inter, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
+body { @apply bg-white text-ink antialiased; font-family: Poppins, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: none; }
 input, select, textarea { font-size: 16px; }
+.tabular { font-variant-numeric: tabular-nums; }
 
 @layer components {
-  .card { @apply bg-white rounded-2xl shadow-sm border border-slate-100; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 font-semibold transition active:scale-[.98] disabled:opacity-50; }
-  .btn-primary { @apply btn bg-brand-600 text-white; }
-  .btn-ghost { @apply btn bg-slate-100 text-slate-700; }
-  .input { @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-3 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100; }
-  .label { @apply block text-sm font-medium text-slate-500 mb-1; }
+  .card { @apply bg-white rounded-2xl border border-cream-line; }
+  .tile { @apply bg-cream-tile rounded-2xl border border-cream-line; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3.5 font-medium transition active:scale-[.98] disabled:opacity-50; }
+  .btn-primary { @apply btn bg-sun-500 text-ink disabled:bg-neutral-200 disabled:text-neutral-500 disabled:opacity-100; }
+  .btn-dark { @apply btn bg-ink text-white; }
+  .btn-ghost { @apply btn bg-cream-tile border border-cream-line text-ink; }
+  .input { @apply w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 outline-none transition focus:border-sun-500 focus:ring-2 focus:ring-sun-100; }
+  .label { @apply block text-sm text-ink-muted mb-1.5; }
+  .pill { @apply inline-flex items-center gap-1.5 rounded-full bg-sun-100 px-3 py-1 text-sm font-medium text-ink; }
+  .section-title { @apply text-lg font-semibold text-ink; }
   .pt-safe { padding-top: env(safe-area-inset-top); }
   .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 }

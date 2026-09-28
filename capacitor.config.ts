@@ -4,7 +4,7 @@ const config: CapacitorConfig = {
   appId: 'mg.budgetfamille.app',
   appName: 'Budget Famille',
   webDir: 'dist',
-  android: { backgroundColor: '#a3205f' },
+  android: { backgroundColor: '#FFCC00' },
 }
 
 export default config
