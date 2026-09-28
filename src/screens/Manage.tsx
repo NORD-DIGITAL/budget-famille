@@ -169,6 +169,7 @@ export function SharePage() {
       <div className="card space-y-2 p-5">
         <p className="text-sm text-slate-500">Connecté en tant que</p>
         <p className="font-medium">{session?.user.email}</p>
+        {session?.user.user_metadata?.phone_local && <p className="text-sm text-slate-500">📱 {session.user.user_metadata.phone_local}</p>}
         <button onClick={() => supabase.auth.signOut()} className="btn w-full bg-red-50 text-red-600">Se déconnecter</button>
       </div>
     </div>
