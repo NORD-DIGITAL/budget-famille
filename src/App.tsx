@@ -8,15 +8,16 @@ import { AuthScreen, OnboardingScreen } from './screens/Auth'
 import AccueilScreen from './screens/Carnet'
 import PortefeuilleScreen from './screens/Portefeuille'
 import GraphiquesScreen from './screens/Graphiques'
-import CompteScreen, { AllSheet, ProfilePage, SUB_TITLES } from './screens/Plus'
+import CompteScreen, { AllSheet, SUB_TITLES } from './screens/Plus'
+import { ProfilePage, ProfileSetup } from './screens/Profile'
 import type { SubPage } from './screens/Plus'
-import { BudgetPage, GoalsPage } from './screens/Budget'
+import { BudgetPage, DebtsPage, GoalsPage } from './screens/Budget'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
 
 function Shell() {
-  const { session, authReady, carnet, carnetReady } = useData()
+  const { session, authReady, carnet, carnetReady, profile, profileReady } = useData()
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -34,10 +35,11 @@ function Shell() {
   const openSub = (p: SubPage) => { history.pushState({ p }, ''); setSub(p) }
   const closeSub = () => { if (history.state?.p) history.back(); else setSub(null) }
 
-  if (!authReady || (session && !carnetReady)) {
+  if (!authReady || (session && (!carnetReady || !profileReady))) {
     return <div className="flex h-full items-center justify-center bg-white"><div className="h-10 w-10 animate-spin rounded-full border-4 border-sun-100 border-t-sun-500" /></div>
   }
   if (!session) return <AuthScreen />
+  if (!profile?.onboarded) return <ProfileSetup />
   if (!carnet) return <OnboardingScreen />
 
   const openForm = (t: Tx | null, k: Kind = 'depense') => { setEditing(t); setFormKind(k); setFormOpen(true) }
@@ -48,6 +50,7 @@ function Shell() {
         <Header title={SUB_TITLES[sub]} onBack={closeSub} />
         {sub === 'budget' && <BudgetPage />}
         {sub === 'objectifs' && <GoalsPage />}
+        {sub === 'dettes' && <DebtsPage />}
         {sub === 'categories' && <CategoriesPage />}
         {sub === 'comptes' && <AccountsPage />}
         {sub === 'membres' && <MembersPage />}

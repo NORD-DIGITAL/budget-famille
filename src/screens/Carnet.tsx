@@ -13,11 +13,11 @@ export type Shortcut = { label: string; Icon: LucideIcon; run: () => void }
 export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, goAccount }: {
   onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount: () => void
 }) {
-  const { txs, month, catById, accById, memById, cur, session } = useData()
+  const { txs, month, catById, accById, memById, cur, session, profile, catPath } = useData()
   const [hidden, toggleHidden] = useHidden()
   const [q, setQ] = useState('')
   const [searching, setSearching] = useState(false)
-  const me = userInfo(session)
+  const me = userInfo(session, profile)
 
   const monthTx = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(month)), [txs, month])
   const inc = monthTx.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
@@ -27,10 +27,10 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
     const s = q.trim().toLowerCase()
     if (!s) return monthTx
     return txs.filter((t) => {
-      const c = t.category_id ? catById.get(t.category_id)?.name ?? '' : ''
+      const c = catPath(t.category_id) + ' ' + (t.child_name ?? '')
       return (t.note ?? '').toLowerCase().includes(s) || c.toLowerCase().includes(s)
     })
-  }, [txs, monthTx, q, catById])
+  }, [txs, monthTx, q, catPath])
 
   const groups = useMemo(() => {
     const m = new Map<string, Tx[]>()
@@ -131,7 +131,11 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
                       <IconTile name={c?.name ?? ''} emoji={c?.icon} color={c?.color} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{c?.name ?? 'Sans catégorie'}</p>
-                        <p className="truncate text-xs text-ink-muted">{[a?.name, m?.name, t.note].filter(Boolean).join(' · ')}</p>
+                        <p className="truncate text-xs text-ink-muted">{[
+                          c?.parent_id ? catById.get(c.parent_id)?.name : null,
+                          t.quantity ? `${String(t.quantity).replace('.', ',')} ${t.unit ?? ''}` : null,
+                          t.child_name, a?.name, m?.name, t.note,
+                        ].filter(Boolean).join(' · ')}</p>
                       </div>
                       <span className={`tabular shrink-0 font-semibold ${t.kind === 'revenu' ? 'text-emerald-600' : ''}`}>
                         {hidden ? '••••' : `${t.kind === 'revenu' ? '+' : '−'}${fmt(t.amount, cur)}`}

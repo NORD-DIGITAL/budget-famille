@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, Landmark, LogOut, PieChart, PiggyBank, Share2, ShieldCheck, Target, UserRound, Users } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
@@ -7,9 +7,9 @@ import { userInfo } from '../lib/prefs'
 import type { Kind } from '../lib/types'
 import { Header, Row, Sheet } from '../components/ui'
 
-export type SubPage = 'budget' | 'objectifs' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Objectifs d'épargne", categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil',
+  budget: 'Budget', objectifs: "Objectifs d'épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil',
 }
 
 function useExportCsv() {
@@ -38,8 +38,8 @@ function useExportCsv() {
 
 /** Page « Mon compte » : profil + liste des réglages. */
 export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
-  const { session, carnet } = useData()
-  const me = userInfo(session)
+  const { session, profile, carnet } = useData()
+  const me = userInfo(session, profile)
   const csv = useExportCsv()
   const [confirmOut, setConfirmOut] = useState(false)
 
@@ -52,18 +52,17 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full bg-ink text-2xl font-semibold text-white">{me.initials}</div>
         <div className="min-w-0 flex-1">
           <p className="truncate text-lg font-semibold">{me.name}</p>
-          <p className="tabular text-ink-soft">{me.phone || me.email}</p>
+          {me.phone && <p className="tabular text-ink-soft">{me.phone}</p>}
+          <p className="truncate text-sm text-ink-muted">{me.email}</p>
           <button onClick={() => open('profil')} className="pill mt-2 bg-sun-300">Voir le profil</button>
         </div>
-        <button onClick={() => open('partage')} className="flex flex-col items-center rounded-2xl border border-cream-line bg-cream-tile px-3 py-2">
-          <span className="text-[10px] uppercase tracking-wider text-ink-muted">Code famille</span>
-          <span className="tabular text-sm font-semibold tracking-widest">{carnet?.invite_code}</span>
-        </button>
       </div>
+      <p className="border-b border-neutral-100 px-5 py-3 text-sm text-ink-muted">Carnet ouvert : <b className="text-ink">{carnet?.name}</b></p>
 
       <div>
         <Row icon={ico(Target)} label="Budget du mois" onClick={() => open('budget')} />
         <Row icon={ico(PiggyBank)} label="Objectifs d'épargne" onClick={() => open('objectifs')} />
+        <Row icon={ico(HandCoins)} label="Dettes" sub="Ce que je dois, ce qu'on me doit" onClick={() => open('dettes')} />
         <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
         <Row icon={ico(Landmark)} label="Comptes" onClick={() => open('comptes')} />
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
@@ -91,6 +90,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
     { title: 'Suivre', items: [
       { label: 'Budget du mois', Icon: Target, run: go(() => openSub('budget')) },
       { label: "Objectifs d'épargne", Icon: PiggyBank, run: go(() => openSub('objectifs')) },
+      { label: 'Dettes', Icon: HandCoins, run: go(() => openSub('dettes')) },
       { label: 'Graphiques', Icon: PieChart, run: go(goCharts) },
     ] },
     { title: 'Organiser', items: [
@@ -126,39 +126,3 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
   )
 }
 
-export function ProfilePage() {
-  const { session } = useData()
-  const md = (session?.user.user_metadata ?? {}) as { full_name?: string; phone_local?: string }
-  const [name, setName] = useState(md.full_name ?? '')
-  const initialDigits = (md.phone_local ?? '').replace(/\D/g, '')
-  const [prefix, setPrefix] = useState(initialDigits.slice(0, 3) || '034')
-  const [phone, setPhone] = useState(initialDigits.slice(3))
-  const [msg, setMsg] = useState('')
-  const save = async () => {
-    const d = phone.replace(/\D/g, '')
-    if (d && d.length !== 7) return setMsg('Numéro : 7 chiffres après le préfixe.')
-    const { error } = await supabase.auth.updateUser({ data: {
-      full_name: name.trim(),
-      ...(d ? { phone: `+261${prefix.slice(1)}${d}`, phone_local: `${prefix} ${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5)}` } : {}),
-    } })
-    setMsg(error ? error.message : 'Profil enregistré.')
-  }
-  return (
-    <div className="space-y-4 px-5 py-2">
-      <div><label className="label" htmlFor="pf-name">Nom et prénom</label><input id="pf-name" className="input" value={name} onChange={(e) => setName(e.target.value)} /></div>
-      <div>
-        <label className="label" htmlFor="pf-phone">Téléphone</label>
-        <div className="flex gap-2">
-          <select aria-label="Préfixe" className="input w-[6.5rem]" value={prefix} onChange={(e) => setPrefix(e.target.value)}>
-            {['032', '033', '034', '036', '037', '038'].map((p) => <option key={p}>{p}</option>)}
-          </select>
-          <input id="pf-phone" className="input tabular flex-1" inputMode="numeric" placeholder="12 345 67" value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 7))} />
-        </div>
-      </div>
-      <div><p className="label">Email</p><p className="rounded-2xl bg-neutral-50 px-4 py-3.5 text-ink-soft">{session?.user.email}</p></div>
-      {msg && <p className="rounded-2xl bg-sun-50 px-4 py-3 text-sm">{msg}</p>}
-      <button onClick={save} className="btn-primary w-full">Enregistrer</button>
-      <p className="flex items-center gap-2 pt-4 text-xs text-ink-muted"><ShieldCheck size={16} /> Tes données sont visibles uniquement par les membres de ton carnet.</p>
-    </div>
-  )
-}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
+import type { Profile } from './types'
 
 const KEY = 'bf-hide-amounts'
 const listeners = new Set<(v: boolean) => void>()
@@ -17,10 +18,10 @@ export function useHidden(): [boolean, () => void] {
   return [v, toggle]
 }
 
-export function userInfo(session: Session | null) {
+export function userInfo(session: Session | null, profile?: Profile | null) {
   const md = (session?.user.user_metadata ?? {}) as { full_name?: string; phone_local?: string }
   const email = session?.user.email ?? ''
-  const name = md.full_name?.trim() || email.split('@')[0] || 'Moi'
+  const name = profile?.full_name?.trim() || md.full_name?.trim() || email.split('@')[0] || 'Moi'
   const initials = name.split(/[\s\-_.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || 'M'
   return { name, initials, phone: md.phone_local ?? '', email }
 }

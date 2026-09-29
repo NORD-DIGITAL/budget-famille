@@ -3,11 +3,11 @@ import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { daysInMonth, fmt, monthKey, monthLabel, parseAmount } from '../lib/format'
-import type { Budget, Goal } from '../lib/types'
-import { Empty, IconBubble, Progress, Sheet } from '../components/ui'
+import type { Budget, Debt, Goal } from '../lib/types'
+import { Empty, IconBubble, Progress, Segmented, Sheet } from '../components/ui'
 
 export function BudgetPage() {
-  const { budgets, categories, txs, month, catById, cur, carnet, reload } = useData()
+  const { budgets, categories, txs, month, catById, cur, carnet, reload, catPath } = useData()
   const [edit, setEdit] = useState<{ b: Budget | null; catId: string | null; amount: string; mode: 'global' | 'cat' } | null>(null)
   const [err, setErr] = useState('')
 
@@ -16,10 +16,12 @@ export function BudgetPage() {
     let total = 0
     for (const t of txs) if (t.kind === 'depense' && t.occurred_on.startsWith(month)) {
       total += t.amount
-      m.set(t.category_id, (m.get(t.category_id) ?? 0) + t.amount)
+      // cumul sur la catégorie et toutes ses catégories parentes
+      let c = t.category_id ? catById.get(t.category_id) : undefined
+      for (let i = 0; c && i < 10; i++) { m.set(c.id, (m.get(c.id) ?? 0) + t.amount); c = c.parent_id ? catById.get(c.parent_id) : undefined }
     }
     return { m, total }
-  }, [txs, month])
+  }, [txs, month, catById])
 
   const global = budgets.find((b) => !b.category_id)
   const perCat = budgets.filter((b) => b.category_id)
@@ -54,7 +56,7 @@ export function BudgetPage() {
         <div className="mb-2 flex items-center gap-3">
           <IconBubble name={c?.name ?? ''} icon={c?.icon ?? '💰'} color={c?.color ?? '#FFCC00'} size={36} />
           <div className="flex-1">
-            <p className="font-medium">{c?.name ?? 'Budget global du mois'}</p>
+            <p className="font-medium">{c ? catPath(c.id) : 'Budget global du mois'}</p>
             <p className={`text-xs ${left < 0 ? 'text-red-600' : pace ? 'text-amber-600' : 'text-neutral-400'}`}>
               {left < 0 ? `Dépassé de ${fmt(-left, cur)}` : `Reste ${fmt(left, cur)}${pace ? ' · rythme trop rapide' : ''}`}
             </p>
@@ -89,7 +91,7 @@ export function BudgetPage() {
                 <label className="label">Catégorie</label>
                 <select className="input" value={edit.catId ?? ''} onChange={(e) => setEdit({ ...edit, catId: e.target.value || null })}>
                   <option value="">Choisir…</option>
-                  {categories.filter((c) => c.kind === 'depense' && !c.archived && (!usedCats.has(c.id) || c.id === edit.b?.category_id)).map((c) => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                  {categories.filter((c) => c.kind === 'depense' && !c.archived && (!usedCats.has(c.id) || c.id === edit.b?.category_id)).sort((a, b) => catPath(a.id).localeCompare(catPath(b.id), 'fr')).map((c) => <option key={c.id} value={c.id}>{catPath(c.id)}</option>)}
                 </select>
               </div>
             )}
@@ -193,6 +195,119 @@ export function GoalsPage() {
           <div className="space-y-3">
             <input className="input text-center text-2xl font-bold" inputMode="numeric" autoFocus placeholder={`0 ${cur}`} value={add.amount} onChange={(e) => { const n = parseAmount(e.target.value); setAdd({ ...add, amount: n ? n.toLocaleString('fr-FR') : '' }) }} />
             <button onClick={deposit} className="btn-primary w-full">Valider</button>
+          </div>
+        )}
+      </Sheet>
+    </div>
+  )
+}
+
+type DebtEdit = { d: Debt | null; direction: Debt['direction']; person: string; amount: string; due: string; note: string }
+
+export function DebtsPage() {
+  const { debts, cur, carnet, reload } = useData()
+  const [tab, setTab] = useState<Debt['direction']>('je_dois')
+  const [edit, setEdit] = useState<DebtEdit | null>(null)
+  const [pay, setPay] = useState<{ d: Debt; amount: string } | null>(null)
+  const [err, setErr] = useState('')
+  const [confirmDel, setConfirmDel] = useState(false)
+
+  const list = debts.filter((d) => d.direction === tab)
+  const open = list.filter((d) => d.paid < d.amount)
+  const done = list.filter((d) => d.paid >= d.amount)
+  const leftOf = (d: Debt) => Math.max(0, d.amount - d.paid)
+  const totalLeft = (dir: Debt['direction']) => debts.filter((d) => d.direction === dir).reduce((a, d) => a + leftOf(d), 0)
+
+  const save = async () => {
+    if (!edit) return
+    const amount = parseAmount(edit.amount)
+    if (!edit.person.trim()) return setErr('Indique la personne ou l\'organisme.')
+    if (!amount) return setErr('Indique le montant.')
+    const row = { direction: edit.direction, person: edit.person.trim(), amount, due_date: edit.due || null, note: edit.note.trim() || null }
+    const { error } = edit.d ? await supabase.from('debts').update(row).eq('id', edit.d.id) : await supabase.from('debts').insert({ ...row, carnet_id: carnet!.id })
+    if (error) return setErr(error.message)
+    await reload(); setEdit(null)
+  }
+  const remove = async () => {
+    if (!edit?.d) return
+    if (!confirmDel) return setConfirmDel(true)
+    await supabase.from('debts').delete().eq('id', edit.d.id)
+    await reload(); setEdit(null)
+  }
+  const repay = async () => {
+    if (!pay) return
+    const n = parseAmount(pay.amount)
+    if (!n) return
+    await supabase.from('debts').update({ paid: Math.min(pay.d.amount, pay.d.paid + n) }).eq('id', pay.d.id)
+    await reload(); setPay(null)
+  }
+  const openEdit = (d: Debt | null) => {
+    setErr(''); setConfirmDel(false)
+    setEdit(d ? { d, direction: d.direction, person: d.person, amount: d.amount.toLocaleString('fr-FR'), due: d.due_date ?? '', note: d.note ?? '' }
+      : { d: null, direction: tab, person: '', amount: '', due: '', note: '' })
+  }
+  const late = (d: Debt) => d.due_date && d.due_date < new Date().toISOString().slice(0, 10) && d.paid < d.amount
+
+  const Card = ({ d }: { d: Debt }) => (
+    <div className="tile p-4">
+      <button onClick={() => openEdit(d)} className="mb-3 flex w-full items-center gap-3 text-left">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink font-semibold text-white">{d.person.charAt(0).toUpperCase()}</div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold">{d.person}</p>
+          <p className={`text-xs ${late(d) ? 'text-red-600' : 'text-ink-muted'}`}>
+            {d.paid >= d.amount ? 'Soldée ✔' : d.due_date ? `${late(d) ? 'En retard · ' : ''}échéance ${new Date(d.due_date + 'T00:00:00').toLocaleDateString('fr-FR')}` : 'Sans échéance'}
+            {d.note ? ` · ${d.note}` : ''}
+          </p>
+        </div>
+        <div className="text-right"><p className="tabular font-semibold">{fmt(leftOf(d), cur)}</p><p className="tabular text-xs text-ink-muted">sur {fmt(d.amount, cur)}</p></div>
+      </button>
+      <Progress value={d.paid} max={d.amount} color={d.paid >= d.amount ? '#10B981' : '#FFCC00'} />
+      {d.paid < d.amount && (
+        <button onClick={() => setPay({ d, amount: '' })} className="btn-primary mt-3 w-full py-2.5 text-sm">
+          {d.direction === 'je_dois' ? '+ Enregistrer un remboursement' : '+ Enregistrer un paiement reçu'}
+        </button>
+      )}
+    </div>
+  )
+
+  return (
+    <div className="space-y-4 px-5 pb-8 pt-2">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-2xl bg-red-50 p-4"><p className="text-xs text-red-700">Je dois encore</p><p className="tabular font-semibold">{fmt(totalLeft('je_dois'), cur)}</p></div>
+        <div className="rounded-2xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">On me doit encore</p><p className="tabular font-semibold">{fmt(totalLeft('on_me_doit'), cur)}</p></div>
+      </div>
+      <Segmented value={tab} onChange={setTab} options={[['je_dois', 'Je dois'], ['on_me_doit', 'On me doit']]} />
+      <button onClick={() => openEdit(null)} className="btn-ghost w-full"><Plus size={18} /> {tab === 'je_dois' ? 'Nouvelle dette' : 'Nouvelle créance (on me doit)'}</button>
+      {list.length === 0 && <Empty icon="🤝" text={tab === 'je_dois' ? 'Aucune dette. Ex : avance MVola, prêt d\'un proche, crédit chez l\'épicier.' : 'Personne ne te doit d\'argent pour le moment.'} />}
+      {open.map((d) => <Card key={d.id} d={d} />)}
+      {done.length > 0 && <p className="pt-2 text-sm font-medium text-ink-muted">Soldées</p>}
+      {done.map((d) => <Card key={d.id} d={d} />)}
+
+      <Sheet open={!!edit} onClose={() => setEdit(null)} title={edit?.d ? 'Modifier' : edit?.direction === 'je_dois' ? 'Nouvelle dette' : 'Nouvelle créance'}>
+        {edit && (
+          <div className="space-y-4">
+            <Segmented value={edit.direction} onChange={(v) => setEdit({ ...edit, direction: v })} options={[['je_dois', 'Je dois'], ['on_me_doit', 'On me doit']]} />
+            <div><label className="label" htmlFor="debt-person">{edit.direction === 'je_dois' ? 'À qui ?' : 'Qui ?'}</label><input id="debt-person" className="input" placeholder="Ex : Rakoto, MVola Avance, épicerie" value={edit.person} onChange={(e) => setEdit({ ...edit, person: e.target.value })} /></div>
+            <div><label className="label" htmlFor="debt-amount">Montant total ({cur})</label><input id="debt-amount" className="input tabular" inputMode="numeric" value={edit.amount} onChange={(e) => { const n = parseAmount(e.target.value); setEdit({ ...edit, amount: n ? n.toLocaleString('fr-FR') : '' }) }} /></div>
+            <div><label className="label" htmlFor="debt-due">Échéance (facultatif)</label><input id="debt-due" type="date" className="input" value={edit.due} onChange={(e) => setEdit({ ...edit, due: e.target.value })} /></div>
+            <div><label className="label" htmlFor="debt-note">Note</label><input id="debt-note" className="input" value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} /></div>
+            {edit.d && <p className="text-sm text-ink-muted">Déjà remboursé : <b className="tabular text-ink">{fmt(edit.d.paid, cur)}</b></p>}
+            {err && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
+            <div className="flex gap-2">
+              {edit.d && <button onClick={remove} className={`btn ${confirmDel ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600'}`}>{confirmDel ? 'Confirmer' : 'Supprimer'}</button>}
+              <button onClick={save} className="btn-primary flex-1">Enregistrer</button>
+            </div>
+          </div>
+        )}
+      </Sheet>
+
+      <Sheet open={!!pay} onClose={() => setPay(null)} title={pay?.d.direction === 'je_dois' ? `Remboursement · ${pay?.d.person}` : `Paiement reçu · ${pay?.d.person}`}>
+        {pay && (
+          <div className="space-y-3">
+            <p className="text-sm text-ink-muted">Reste à payer : <b className="tabular text-ink">{fmt(leftOf(pay.d), cur)}</b></p>
+            <input className="input tabular text-center text-2xl font-semibold" inputMode="numeric" autoFocus placeholder={`0 ${cur}`} value={pay.amount} onChange={(e) => { const n = parseAmount(e.target.value); setPay({ ...pay, amount: n ? n.toLocaleString('fr-FR') : '' }) }} />
+            <button onClick={() => setPay({ ...pay, amount: leftOf(pay.d).toLocaleString('fr-FR') })} className="btn-ghost w-full py-2.5 text-sm">Tout rembourser</button>
+            <button onClick={repay} className="btn-primary w-full">Valider</button>
           </div>
         )}
       </Sheet>

@@ -3,18 +3,24 @@ import {
   ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronLeft, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home,
   Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X,
 } from 'lucide-react'
+import { Beef, Carrot, Cookie, CupSoda, Droplet, Ellipsis, Film, Fish, Gamepad2, HandCoins, HeartHandshake, Laptop, Leaf, Salad, ShoppingCart, Sparkles, Ticket, UtensilsCrossed, Wheat, Wine } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { addMonths, monthLabel } from '../lib/format'
 import { useData } from '../lib/data'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
+  [/^vary|\briz\b/i, Wheat], [/l[ée]gume/i, Carrot], [/anana|br[èe]de/i, Leaf], [/^hena|viande/i, Beef], [/l[ôo]ka|poisson|trondro/i, Fish],
+  [/menaka|huile/i, Droplet], [/sakay|tongolo|voatabia|tomate|oignon/i, Salad], [/bazary|courses?\b/i, ShoppingCart], [/go[ûu]ter/i, Cookie],
+  [/resto/i, UtensilsCrossed], [/^jus/i, CupSoda], [/revy|boisson|bi[èe]re/i, Wine], [/cin[ée]ma|netflix/i, Film], [/sortie/i, Ticket],
+  [/informatique|ordinateur/i, Laptop], [/^ai$|^ia$|intelligence|chatgpt/i, Sparkles], [/jeux|jeu vid/i, Gamepad2], [/enfant/i, Baby],
+  [/familles? autres?/i, HeartHandshake], [/dette|pr[êe]t/i, HandCoins],
   [/aliment|nourrit|march/i, ShoppingBasket], [/transport|taxi|carbur/i, Bus], [/logement|loyer|maison/i, Home],
   [/jirama|electri|eau/i, Lightbulb], [/quotidien|course/i, ShoppingBag], [/sant|m[ée]dic|pharma/i, HeartPulse],
   [/[ée]cole|scolar|[ée]tude/i, GraduationCap], [/loisir|sortie|film/i, Clapperboard], [/social|f[êe]te|c[ée]r[ée]monie/i, PartyPopper],
   [/cr[ée]dit|t[ée]l[ée]phone|forfait/i, Wifi], [/famille|enfant|b[ée]b[ée]/i, Baby], [/salaire/i, Briefcase], [/prime|cadeau|don/i, Gift],
   [/business|vente|commerce/i, Store], [/autre revenu/i, PlusCircle], [/esp[èe]ce|cash/i, Banknote], [/mvola|orange|airtel|money/i, Smartphone],
-  [/banque/i, Landmark], [/[ée]pargne/i, PiggyBank], [/portefeuille/i, Wallet],
+  [/banque/i, Landmark], [/[ée]pargne/i, PiggyBank], [/portefeuille/i, Wallet], [/^autres?\b/i, Ellipsis],
 ]
 export function iconFor(name: string): LucideIcon | null {
   for (const [re, I] of ICONS) if (re.test(name)) return I
