@@ -1,11 +1,13 @@
 import { useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
+import { Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { userInfo } from '../lib/prefs'
 import type { Kind } from '../lib/types'
 import { Header, Row, Sheet } from '../components/ui'
+import { useEffect } from 'react'
+import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
 export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil'
 export const SUB_TITLES: Record<SubPage, string> = {
@@ -67,6 +69,7 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <Row icon={ico(Landmark)} label="Comptes" onClick={() => open('comptes')} />
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
         <Row icon={ico(Share2)} label="Famille & partage" sub="Inviter un proche avec le code" onClick={() => open('partage')} />
+        <BiometricRow />
         <Row icon={ico(FileDown)} label="Exporter vers Excel (CSV)" sub={csv.status || undefined} onClick={csv.run} right={<span />} />
         <Row icon={<LogOut size={26} strokeWidth={1.6} />} label={confirmOut ? 'Toucher encore pour confirmer' : 'Se déconnecter'} danger
           onClick={() => (confirmOut ? supabase.auth.signOut() : setConfirmOut(true))} />
@@ -126,3 +129,25 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
   )
 }
 
+
+function BiometricRow() {
+  const { session } = useData()
+  const uid = session!.user.id
+  const [avail, setAvail] = useState<boolean | null>(null)
+  const [on, setOn] = useState(biometricEnabled(uid))
+  const [msg, setMsg] = useState('')
+  useEffect(() => { biometricAvailable().then(setAvail) }, [])
+  const toggle = async () => {
+    setMsg('')
+    if (on) { disableBiometric(uid); setOn(false); return }
+    const e = await enableBiometric(uid, session!.user.email ?? '')
+    if (e) setMsg(e); else setOn(true)
+  }
+  return (
+    <Row icon={<Fingerprint size={26} strokeWidth={1.6} />} label="Connexion par empreinte / visage"
+      sub={msg || (avail === false ? "Non disponible sur cet appareil ou ce navigateur" : on ? 'Activée · demandée à chaque ouverture' : 'Désactivée')}
+      onClick={avail ? toggle : undefined}
+      right={<span className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-sun-500' : 'bg-neutral-300'} ${avail === false ? 'opacity-40' : ''}`}>
+        <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} /></span>} />
+  )
+}

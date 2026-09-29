@@ -1,17 +1,18 @@
 import { useState } from 'react'
-import { Plus, Copy, Check } from 'lucide-react'
+import { Plus, Copy, Check, Lock, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { COLORS, fmt, parseAmount } from '../lib/format'
 import type { Kind } from '../lib/types'
-import { BareIcon, IconBubble, Segmented, Sheet } from '../components/ui'
+import { BareIcon, ICON_SET, IconBubble, Segmented, Sheet } from '../components/ui'
 
 type Item = { id?: string; name: string; icon: string; color: string; balance: string; archived: boolean; kind?: Kind }
 
-function ItemSheet({ item, setItem, onSave, withIcon, withColor, withBalance, cur }: {
+function ItemSheet({ item, setItem, onSave, withIcon, withColor, withBalance, cur, onDelete, deleteWarning }: {
   item: Item | null; setItem: (i: Item | null) => void; onSave: () => void
-  withIcon?: boolean; withColor?: boolean; withBalance?: boolean; cur: string
+  withIcon?: boolean; withColor?: boolean; withBalance?: boolean; cur: string; onDelete?: () => void; deleteWarning?: string
 }) {
+  const [confirmDel, setConfirmDel] = useState(false)
   return (
     <Sheet open={!!item} onClose={() => setItem(null)} title={item?.id ? 'Modifier' : 'Ajouter'}>
       {item && (
@@ -45,7 +46,15 @@ function ItemSheet({ item, setItem, onSave, withIcon, withColor, withBalance, cu
               Masquer (archivé — l'historique est conservé)
             </label>
           )}
-          <button onClick={onSave} disabled={!item.name.trim()} className="btn-primary w-full">Enregistrer</button>
+          {onDelete && confirmDel && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">{deleteWarning}</p>}
+          <div className="flex gap-2">
+            {onDelete && (
+              <button type="button" onClick={() => (confirmDel ? onDelete() : setConfirmDel(true))} className={`btn ${confirmDel ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600'}`}>
+                <Trash2 size={18} />{confirmDel ? 'Confirmer' : ''}
+              </button>
+            )}
+            <button onClick={onSave} disabled={!item.name.trim()} className="btn-primary flex-1">Enregistrer</button>
+          </div>
         </div>
       )}
     </Sheet>
@@ -58,6 +67,7 @@ export function CategoriesPage() {
   const { categories, carnet, reload, childrenOf, catById } = useData()
   const [kind, setKind] = useState<Kind>('depense')
   const [item, setItem] = useState<CatEdit | null>(null)
+  const [lockedMsg, setLockedMsg] = useState('')
   const roots = (childrenOf.get(null) ?? []).filter((c) => c.kind === kind)
 
   const depth = (id: string | null) => { let d = 0; let c = id ? catById.get(id) : undefined; while (c?.parent_id) { d++; c = catById.get(c.parent_id) } return d }
@@ -72,14 +82,15 @@ export function CategoriesPage() {
     else await supabase.from('categories').insert({ ...row, kind, carnet_id: carnet!.id, position: (childrenOf.get(item.parent_id)?.length ?? 0) + 1 })
     await reload(); setItem(null)
   }
-  const edit = (c: (typeof categories)[number]) => setItem({ id: c.id, name: c.name, icon: c.icon, color: c.color, archived: c.archived, parent_id: c.parent_id, unit: c.unit ?? '' })
+  const edit = (c: (typeof categories)[number]) => c.is_default ? setLockedMsg(`« ${c.name} » est une catégorie de base : elle ne peut pas être modifiée. Tu peux lui ajouter des sous-catégories.`) : setItem({ id: c.id, name: c.name, icon: c.icon, color: c.color, archived: c.archived, parent_id: c.parent_id, unit: c.unit ?? '' })
 
   const renderRow = (c: (typeof categories)[number], lvl: number): React.ReactNode => (
     <div key={c.id}>
       <button onClick={() => edit(c)} className={`flex w-full items-center gap-3 border-b border-neutral-100 py-3 text-left ${c.archived ? 'opacity-40' : ''}`} style={{ paddingLeft: lvl * 28 }}>
         {lvl === 0 ? <IconBubble name={c.name} icon={c.icon} color={c.color} size={40} /> : <BareIcon name={c.name} emoji={c.icon} size={22} />}
         <span className={`flex-1 ${lvl === 0 ? 'font-medium' : 'text-[15px]'}`}>{c.name}</span>
-        {c.unit && <span className="pill py-0.5 text-xs">{c.unit}</span>}
+        {c.unit && <span className="pill py-0.5 text-xs">{c.unit.replace('|', ' / ')}</span>}
+        {c.is_default ? <Lock size={14} className="text-neutral-300" /> : <span className="pill py-0.5 text-xs">Perso</span>}
       </button>
       {(childrenOf.get(c.id) ?? []).map((k) => renderRow(k, lvl + 1))}
     </div>
@@ -88,15 +99,25 @@ export function CategoriesPage() {
   return (
     <div className="space-y-4 px-5 pb-8 pt-2">
       <Segmented value={kind} onChange={setKind} options={[['depense', 'Dépenses'], ['revenu', 'Revenus']]} />
+      <p className="text-xs text-ink-muted"><Lock size={12} className="mr-1 inline" />Catégories de base (non modifiables) · <b>Perso</b> : créées par toi, modifiables.</p>
+      {lockedMsg && <p className="rounded-2xl bg-sun-100 px-4 py-3 text-sm" onClick={() => setLockedMsg('')}>{lockedMsg}</p>}
       <div>{roots.map((c) => renderRow(c, 0))}</div>
-      <button onClick={() => setItem({ name: '', icon: '📦', color: COLORS[roots.length % COLORS.length], archived: false, parent_id: null, unit: '' })} className="btn-ghost w-full"><Plus size={18} /> Ajouter une catégorie</button>
+      <button onClick={() => setItem({ name: '', icon: 'i:Package', color: COLORS[roots.length % COLORS.length], archived: false, parent_id: null, unit: '' })} className="btn-ghost w-full"><Plus size={18} /> Ajouter une catégorie</button>
 
       <Sheet open={!!item} onClose={() => setItem(null)} title={item?.id ? 'Modifier la catégorie' : 'Nouvelle catégorie'}>
         {item && (
           <div className="space-y-4">
-            <div className="flex gap-2">
-              <input aria-label="Icône (emoji)" className="input w-16 text-center text-2xl" value={item.icon} onChange={(e) => setItem({ ...item, icon: [...e.target.value].slice(-1).join('') })} />
-              <input className="input flex-1" placeholder="Nom" autoFocus={!item.id} value={item.name} onChange={(e) => setItem({ ...item, name: e.target.value })} />
+            <input className="input" placeholder="Nom de la catégorie" aria-label="Nom" value={item.name} onChange={(e) => setItem({ ...item, name: e.target.value })} />
+            <div>
+              <p className="label">Icône</p>
+              <div className="grid max-h-56 grid-cols-6 gap-2 overflow-y-auto rounded-2xl border border-cream-line bg-cream-tile p-2">
+                {Object.entries(ICON_SET).map(([n, I]) => (
+                  <button key={n} type="button" aria-label={n} onClick={() => setItem({ ...item, icon: 'i:' + n })}
+                    className={`flex aspect-square items-center justify-center rounded-xl transition ${item.icon === 'i:' + n ? 'bg-sun-500' : 'bg-white'}`}>
+                    <I size={22} strokeWidth={1.6} />
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label className="label" htmlFor="cat-parent">Ranger dans</label>
@@ -107,7 +128,7 @@ export function CategoriesPage() {
             </div>
             <div>
               <label className="label" htmlFor="cat-unit">Unité de quantité (facultatif)</label>
-              <input id="cat-unit" className="input" placeholder="Ex : kg, litre, kapoaka" value={item.unit} onChange={(e) => setItem({ ...item, unit: e.target.value })} />
+              <input id="cat-unit" className="input" placeholder="Ex : kg, litre, kapoaka (plusieurs : kg|kapoaka)" value={item.unit} onChange={(e) => setItem({ ...item, unit: e.target.value })} />
               <p className="mt-1 text-xs text-ink-muted">Avec une unité, la saisie demande la quantité et calcule le prix unitaire (comme pour le Vary).</p>
             </div>
             {!item.parent_id && (
@@ -170,6 +191,12 @@ export function MembersPage() {
     else await supabase.from('members').insert({ ...row, carnet_id: carnet!.id })
     await reload(); setItem(null)
   }
+  const moiId = (members.find((m) => m.name.trim().toLowerCase() === 'moi') ?? members[0])?.id
+  const remove = async () => {
+    if (!item?.id || item.id === moiId) return
+    await supabase.from('members').delete().eq('id', item.id)
+    await reload(); setItem(null)
+  }
   return (
     <div className="space-y-4 p-4">
       <p className="px-1 text-sm text-neutral-500">Les membres servent à noter qui a payé ou reçu. Ils n'ont pas besoin d'avoir l'application.</p>
@@ -178,11 +205,14 @@ export function MembersPage() {
           <button key={m.id} onClick={() => setItem({ id: m.id, name: m.name, icon: '', color: m.color, balance: '', archived: m.archived })} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left ${m.archived ? 'opacity-40' : ''}`}>
             <div className="flex h-9 w-9 items-center justify-center rounded-full font-semibold text-white" style={{ background: m.color }}>{m.name.charAt(0).toUpperCase()}</div>
             <span className="flex-1 font-medium">{m.name}</span>
+            {m.id === moiId && <span className="text-xs text-ink-muted">toi · non supprimable</span>}
           </button>
         ))}
       </div>
       <button onClick={() => setItem({ name: '', icon: '', color: COLORS[(members.length + 5) % COLORS.length], balance: '', archived: false })} className="btn-ghost w-full"><Plus size={18} /> Ajouter un membre</button>
-      <ItemSheet item={item} setItem={setItem} onSave={save} withColor cur={cur} />
+      <ItemSheet key={item?.id ?? 'new'} item={item} setItem={setItem} onSave={save} withColor cur={cur}
+        onDelete={item?.id && item.id !== moiId ? remove : undefined}
+        deleteWarning={`Supprimer « ${item?.name ?? ''} » ? Ses opérations sont conservées mais n'auront plus de membre.`} />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
+import { DateField } from '../components/DatePicker'
 import { daysInMonth, fmt, monthKey, monthLabel, parseAmount } from '../lib/format'
 import type { Budget, Debt, Goal } from '../lib/types'
 import { Empty, IconBubble, Progress, Segmented, Sheet } from '../components/ui'
@@ -181,7 +182,7 @@ export function GoalsPage() {
               <input className="input flex-1" placeholder="Nom" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />
             </div>
             <div><label className="label">Montant visé ({cur})</label><input className="input" inputMode="numeric" value={edit.target} onChange={(e) => { const n = parseAmount(e.target.value); setEdit({ ...edit, target: n ? n.toLocaleString('fr-FR') : '' }) }} /></div>
-            <div><label className="label">Échéance (optionnel)</label><input type="date" className="input" value={edit.deadline} onChange={(e) => setEdit({ ...edit, deadline: e.target.value })} /></div>
+            <div><label className="label">Échéance (optionnel)</label><DateField value={edit.deadline} clearable placeholder="Aucune échéance" onChange={(v) => setEdit({ ...edit, deadline: v })} /></div>
             <div className="flex gap-2">
               {edit.g && <button onClick={remove} className="btn bg-red-50 text-red-600">Supprimer</button>}
               <button onClick={save} className="btn-primary flex-1">Enregistrer</button>
@@ -289,7 +290,7 @@ export function DebtsPage() {
             <Segmented value={edit.direction} onChange={(v) => setEdit({ ...edit, direction: v })} options={[['je_dois', 'Je dois'], ['on_me_doit', 'On me doit']]} />
             <div><label className="label" htmlFor="debt-person">{edit.direction === 'je_dois' ? 'À qui ?' : 'Qui ?'}</label><input id="debt-person" className="input" placeholder="Ex : Rakoto, MVola Avance, épicerie" value={edit.person} onChange={(e) => setEdit({ ...edit, person: e.target.value })} /></div>
             <div><label className="label" htmlFor="debt-amount">Montant total ({cur})</label><input id="debt-amount" className="input tabular" inputMode="numeric" value={edit.amount} onChange={(e) => { const n = parseAmount(e.target.value); setEdit({ ...edit, amount: n ? n.toLocaleString('fr-FR') : '' }) }} /></div>
-            <div><label className="label" htmlFor="debt-due">Échéance (facultatif)</label><input id="debt-due" type="date" className="input" value={edit.due} onChange={(e) => setEdit({ ...edit, due: e.target.value })} /></div>
+            <div><label className="label" htmlFor="debt-due">Échéance (facultatif)</label><DateField id="debt-due" value={edit.due} clearable placeholder="Aucune échéance" onChange={(v) => setEdit({ ...edit, due: v })} /></div>
             <div><label className="label" htmlFor="debt-note">Note</label><input id="debt-note" className="input" value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} /></div>
             {edit.d && <p className="text-sm text-ink-muted">Déjà remboursé : <b className="tabular text-ink">{fmt(edit.d.paid, cur)}</b></p>}
             {err && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}

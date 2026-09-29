@@ -1,22 +1,26 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownLeft, ArrowUpRight, Eye, EyeOff, Landmark, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
+import { RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, Landmark, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useData } from '../lib/data'
 import { dayLabel, fmt, signed } from '../lib/format'
 import { useHidden, userInfo } from '../lib/prefs'
 import type { Kind, Tx } from '../lib/types'
-import { Empty, IconTile, MonthBar } from '../components/ui'
+import { Empty, IconTile } from '../components/ui'
+import { MonthBar, fmtMonthLong } from '../components/DatePicker'
 import type { SubPage } from './Plus'
+
+export const LOW = 20000
 
 export type Shortcut = { label: string; Icon: LucideIcon; run: () => void }
 
-export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, goAccount }: {
-  onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount: () => void
+export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, goAccount, onRefresh }: {
+  onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount: () => void
 }) {
   const { txs, month, catById, accById, memById, cur, session, profile, catPath } = useData()
   const [hidden, toggleHidden] = useHidden()
   const [q, setQ] = useState('')
   const [searching, setSearching] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const me = userInfo(session, profile)
 
   const monthTx = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(month)), [txs, month])
@@ -52,7 +56,8 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
   ]
 
   return (
-    <div className="bg-gradient-to-b from-[#FFF3C4] via-cream to-cream">
+    <div className="bg-gradient-to-b from-[#FFF3C4] via-cream to-cream lg:grid lg:grid-cols-[400px_1fr] lg:items-start lg:gap-2 lg:bg-none lg:bg-white lg:p-4">
+      <div className="lg:sticky lg:top-4 lg:rounded-[28px] lg:bg-gradient-to-b lg:from-[#FFF3C4] lg:via-cream lg:to-cream lg:pb-2">
       {/* En-tête : salutation */}
       <header className="pt-safe px-5">
         <div className="flex items-center gap-3 py-4">
@@ -62,6 +67,9 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
             <p className="truncate text-[17px] font-medium">{me.name}</p>
             {me.phone && <p className="tabular text-sm text-ink-soft">{me.phone}</p>}
           </div>
+          <button aria-label="Actualiser" onClick={async () => { setRefreshing(true); await onRefresh(); setRefreshing(false) }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white">
+            <RefreshCw size={22} strokeWidth={1.8} className={refreshing ? 'animate-spin' : ''} />
+          </button>
           <button aria-label={searching ? 'Fermer la recherche' : 'Rechercher'} onClick={() => { setSearching(!searching); setQ('') }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white">
             {searching ? <X size={24} strokeWidth={1.8} /> : <Search size={24} strokeWidth={1.8} />}
           </button>
@@ -80,11 +88,12 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
           <section className="px-5 pb-2 pt-2 text-center">
             <p className="text-lg font-semibold">Solde <span className="font-normal text-ink-muted">du mois</span></p>
             <div className="mt-2 flex items-center justify-center gap-3">
-              <p className="tabular text-[34px] font-semibold tracking-tight">{hidden ? '••••••' : signed(inc - exp, '')}<span className="ml-2 text-2xl">{cur}</span></p>
+              <p className={`tabular text-[34px] font-semibold tracking-tight ${!hidden && inc - exp < LOW ? 'text-red-600' : ''}`}>{hidden ? '••••••' : signed(inc - exp, '')}<span className="ml-2 text-2xl">{cur}</span></p>
               <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white">
                 {hidden ? <Eye size={24} strokeWidth={1.8} /> : <EyeOff size={24} strokeWidth={1.8} />}
               </button>
             </div>
+            {!hidden && inc - exp < LOW && <p className="mx-auto mt-1 w-fit rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Solde bas : moins de {fmt(LOW, cur)}</p>}
             <div className="mx-auto mt-4 max-w-xs"><MonthBar /></div>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-white px-4 py-3 text-left">
@@ -109,9 +118,10 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
           </section>
         </>
       )}
+      </div>
 
       {/* Opérations */}
-      <section className="min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6">
+      <section className="min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:px-8 lg:pt-4">
         <h2 className="section-title mb-3">{q ? 'Résultats' : 'Opérations du mois'}</h2>
         {groups.length === 0 && <Empty icon="📒" text={q ? 'Aucun résultat.' : 'Aucune opération ce mois-ci. Touche le bouton jaune pour en ajouter une.'} />}
         <div className="space-y-5">
@@ -134,6 +144,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
                         <p className="truncate text-xs text-ink-muted">{[
                           c?.parent_id ? catById.get(c.parent_id)?.name : null,
                           t.quantity ? `${String(t.quantity).replace('.', ',')} ${t.unit ?? ''}` : null,
+                          t.for_month ? `mois : ${fmtMonthLong(t.for_month)}` : null,
                           t.child_name, a?.name, m?.name, t.note,
                         ].filter(Boolean).join(' · ')}</p>
                       </div>

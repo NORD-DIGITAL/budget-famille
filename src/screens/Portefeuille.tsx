@@ -4,6 +4,7 @@ import { useData } from '../lib/data'
 import { fmt, monthLabel } from '../lib/format'
 import { useHidden } from '../lib/prefs'
 import { Header, IconTile } from '../components/ui'
+import { LOW } from './Carnet'
 
 export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'comptes' | 'membres') => void }) {
   const { accounts, members, txs, cur, month, carnet } = useData()
@@ -35,13 +36,13 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
   return (
     <>
       <Header title="Portefeuille" />
-      <div className="space-y-7 px-5 pb-6">
+      <div className="space-y-7 px-5 pb-6 lg:grid lg:grid-cols-2 lg:gap-x-10 lg:space-y-0 lg:gap-y-8 lg:px-8">
         {/* Carte valeur nette */}
-        <div className="relative overflow-hidden rounded-[28px] bg-sun-500 p-6">
+        <div className={`relative overflow-hidden rounded-[28px] p-6 lg:col-span-2 transition-colors ${total < LOW ? 'bg-red-500 text-white' : 'bg-sun-500'}`}>
           <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full border-[18px] border-white/25" />
           <div className="absolute -bottom-16 right-10 h-32 w-32 rounded-full bg-white/15" />
           <p className="relative text-sm font-medium">{carnet?.name}</p>
-          <p className="relative mt-6 text-sm">Valeur nette</p>
+          <p className="relative mt-6 text-sm">Valeur nette{total < LOW ? ' · solde bas' : ''}</p>
           <div className="relative flex items-center gap-3">
             <p className="tabular text-[32px] font-semibold tracking-tight">{mask(fmt(total, ''))}<span className="ml-1.5 text-xl">{cur}</span></p>
             <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white/30">
@@ -62,7 +63,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
                 <div key={a.id} className="flex items-center gap-4 border-b border-neutral-100 py-3.5 last:border-0">
                   <IconTile name={a.name} emoji={a.icon} />
                   <span className="flex-1 text-[17px]">{a.name}</span>
-                  <span className={`tabular font-semibold ${b < 0 && !hidden ? 'text-red-500' : ''}`}>{mask(fmt(b, cur))}</span>
+                  <span className={`tabular font-semibold ${!hidden && b < 0 ? 'text-red-600' : !hidden && b < LOW ? 'text-orange-500' : ''}`}>{mask(fmt(b, cur))}</span>
                 </div>
               )
             })}

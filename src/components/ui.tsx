@@ -1,15 +1,16 @@
 import type { ReactNode } from 'react'
 import {
-  ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronLeft, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home,
+  ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home,
   Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X,
 } from 'lucide-react'
-import { Beef, Carrot, Cookie, CupSoda, Droplet, Ellipsis, Film, Fish, Gamepad2, HandCoins, HeartHandshake, Laptop, Leaf, Salad, ShoppingCart, Sparkles, Ticket, UtensilsCrossed, Wheat, Wine } from 'lucide-react'
+import { Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
-import { addMonths, monthLabel } from '../lib/format'
-import { useData } from '../lib/data'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
+  [/vihindr|haricot|tsaramaso/i, Bean], [/v[ôo]rogno|akoho|poulet|volaille/i, Drumstick], [/p[âa]te|soupe/i, Soup], [/^mofo|\bpain\b/i, Croissant],
+  [/grand go[ûu]ter/i, CakeSlice], [/inscription/i, ClipboardPen], [/[ée]colage/i, School], [/activit[ée]|\bsport|karat/i, Dumbbell], [/fourniture/i, PencilRuler],
   [/^vary|\briz\b/i, Wheat], [/l[ée]gume/i, Carrot], [/anana|br[èe]de/i, Leaf], [/^hena|viande/i, Beef], [/l[ôo]ka|poisson|trondro/i, Fish],
   [/menaka|huile/i, Droplet], [/sakay|tongolo|voatabia|tomate|oignon/i, Salad], [/bazary|courses?\b/i, ShoppingCart], [/go[ûu]ter/i, Cookie],
   [/resto/i, UtensilsCrossed], [/^jus/i, CupSoda], [/revy|boisson|bi[èe]re/i, Wine], [/cin[ée]ma|netflix/i, Film], [/sortie/i, Ticket],
@@ -22,23 +23,51 @@ const ICONS: [RegExp, LucideIcon][] = [
   [/business|vente|commerce/i, Store], [/autre revenu/i, PlusCircle], [/esp[èe]ce|cash/i, Banknote], [/mvola|orange|airtel|money/i, Smartphone],
   [/banque/i, Landmark], [/[ée]pargne/i, PiggyBank], [/portefeuille/i, Wallet], [/^autres?\b/i, Ellipsis],
 ]
-export function iconFor(name: string): LucideIcon | null {
+export function iconFor(name: string, emoji?: string): LucideIcon | null {
+  if (emoji?.startsWith('i:') && ICON_SET[emoji.slice(2)]) return ICON_SET[emoji.slice(2)]
   for (const [re, I] of ICONS) if (re.test(name)) return I
   return null
 }
 
+/** Icônes proposées quand on crée une catégorie (enregistrées sous la forme « i:Nom »). */
+export const ICON_SET: Record<string, LucideIcon> = {
+  ShoppingBasket, ShoppingCart, UtensilsCrossed, Coffee, Cookie, Croissant, Soup, Wheat, Carrot, Beef, Fish, Drumstick, Bean, Egg, Milk, Apple,
+  CupSoda, Wine, CakeSlice, Bus, Car, Bike, Fuel, Home, Lightbulb, Droplet, Flame, Wifi, Smartphone, HeartPulse, Pill, Baby, GraduationCap,
+  School, BookOpen, PencilRuler, Dumbbell, Shirt, Scissors, Gift, PartyPopper, Church, Film, Gamepad2, Music, Laptop, Sparkles, Plane, Wrench,
+  Hammer, PawPrint, Tractor, Store, Briefcase, Banknote, PiggyBank, HandCoins, Landmark, Users, Heart, Ticket, Package, Ellipsis,
+}
+
+/** Vrai quand le clavier du téléphone est ouvert (la zone visible rétrécit). */
+export function useKeyboardOpen() {
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    const vv = window.visualViewport
+    const base = { h: window.innerHeight }
+    const check = () => {
+      const h = vv ? vv.height : window.innerHeight
+      base.h = Math.max(base.h, window.innerHeight, h)
+      const focused = document.activeElement?.tagName
+      setOpen(base.h - h > 150 && (focused === 'INPUT' || focused === 'TEXTAREA'))
+    }
+    vv?.addEventListener('resize', check); window.addEventListener('resize', check)
+    document.addEventListener('focusin', check); document.addEventListener('focusout', () => setTimeout(check, 50))
+    return () => { vv?.removeEventListener('resize', check); window.removeEventListener('resize', check); document.removeEventListener('focusin', check) }
+  }, [])
+  return open
+}
+
 /** Icône nue (au trait) d'une catégorie ou d'un compte, avec repli sur l'emoji. */
 export function BareIcon({ name, emoji, size = 30 }: { name: string; emoji?: string; size?: number }) {
-  const I = iconFor(name)
-  return I ? <I size={size} strokeWidth={1.5} className="text-ink" /> : <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{emoji ?? '📦'}</span>
+  const I = iconFor(name, emoji)
+  return I ? <I size={size} strokeWidth={1.5} className="text-ink" /> : <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{emoji && !emoji.startsWith('i:') ? emoji : '📦'}</span>
 }
 
 /** Pastille d'icône : icône au trait noire sur fond crème, point de couleur facultatif. */
 export function IconTile({ name, emoji, color, size = 44, active }: { name: string; emoji?: string; color?: string; size?: number; active?: boolean }) {
-  const I = iconFor(name)
+  const I = iconFor(name, emoji)
   return (
     <div className={`relative flex shrink-0 items-center justify-center rounded-2xl border ${active ? 'border-sun-500 bg-sun-100' : 'border-cream-line bg-cream-tile'}`} style={{ width: size, height: size }}>
-      {I ? <I size={size * 0.48} strokeWidth={1.7} className="text-ink" /> : <span style={{ fontSize: size * 0.46 }}>{emoji ?? '📦'}</span>}
+      {I ? <I size={size * 0.48} strokeWidth={1.7} className="text-ink" /> : <span style={{ fontSize: size * 0.46 }}>{emoji && !emoji.startsWith('i:') ? emoji : '📦'}</span>}
       {color && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white" style={{ background: color }} />}
     </div>
   )
@@ -59,22 +88,11 @@ export function Header({ title, onBack, right }: { title: string; onBack?: () =>
   )
 }
 
-export function MonthBar() {
-  const { month, setMonth } = useData()
-  return (
-    <div className="flex items-center justify-between rounded-full border border-cream-line bg-cream-tile p-1">
-      <button aria-label="Mois précédent" onClick={() => setMonth(addMonths(month, -1))} className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white"><ChevronLeft size={20} /></button>
-      <span className="text-sm font-medium">{monthLabel(month)}</span>
-      <button aria-label="Mois suivant" onClick={() => setMonth(addMonths(month, 1))} className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-white"><ChevronRight size={20} /></button>
-    </div>
-  )
-}
-
 /* ---------- Feuille du bas, fermée par la croix ronde ---------- */
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-end bg-black/45 px-3 pt-10" onClick={onClose}>
+    <div data-sheet className="fixed inset-0 z-50 flex flex-col items-center justify-end bg-black/45 px-3 pt-10 lg:justify-center" onClick={onClose}>
       <div className="flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
         {title && <h2 className="px-6 pb-1 pt-6 text-xl font-semibold">{title}</h2>}
         <div className="overflow-y-auto px-6 pb-6 pt-3">{children}</div>

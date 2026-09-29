@@ -104,8 +104,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const [m, a, cat, t, b, g, d, cu] = await Promise.all([
       all<Member>('members', 'id,name,color,archived', 'created_at'),
       all<Account>('accounts', 'id,name,icon,initial_balance,archived', 'created_at'),
-      all<Category>('categories', 'id,kind,name,icon,color,position,archived,parent_id,unit', 'position'),
-      all<Tx>('transactions', 'id,kind,amount,category_id,account_id,member_id,note,occurred_on,created_at,quantity,unit,child_name', 'occurred_on', false),
+      all<Category>('categories', 'id,kind,name,icon,color,position,archived,parent_id,unit,is_default', 'position'),
+      all<Tx>('transactions', 'id,kind,amount,category_id,account_id,member_id,note,occurred_on,created_at,quantity,unit,child_name,for_month', 'occurred_on', false),
       all<Budget>('budgets', 'id,category_id,monthly_amount', 'created_at'),
       all<Goal>('savings_goals', 'id,name,icon,target_amount,saved_amount,deadline', 'created_at'),
       all<Debt>('debts', 'id,direction,person,amount,paid,due_date,note', 'created_at'),

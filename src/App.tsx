@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react'
-import { Home, PieChart, Plus, UserRound, Wallet } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
+import { supabase } from './lib/supabase'
 import { DataProvider, useData } from './lib/data'
+import { userInfo } from './lib/prefs'
+import { biometricAvailable, biometricEnabled, enableBiometric, markAuth, sessionExpired, verifyBiometric } from './lib/lock'
 import type { Kind, Tx } from './lib/types'
-import { Header } from './components/ui'
+import { Header, Sheet } from './components/ui'
 import TxForm from './components/TxForm'
-import { AuthScreen, OnboardingScreen } from './screens/Auth'
+import { AuthScreen, Brand, OnboardingScreen } from './screens/Auth'
 import AccueilScreen from './screens/Carnet'
 import PortefeuilleScreen from './screens/Portefeuille'
 import GraphiquesScreen from './screens/Graphiques'
@@ -15,15 +18,84 @@ import { BudgetPage, DebtsPage, GoalsPage } from './screens/Budget'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
+const AUTO_OUT_KEY = 'bf-auto-logout'
+
+/* ---------- Écran verrouillé (empreinte / visage) ---------- */
+function LockScreen({ onUnlock }: { onUnlock: () => void }) {
+  const { session, profile } = useData()
+  const me = userInfo(session, profile)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const tryUnlock = useCallback(async () => {
+    setBusy(true); setErr('')
+    const ok = await verifyBiometric(session!.user.id)
+    setBusy(false)
+    if (ok) { markAuth(session!.user.id); onUnlock() } else setErr("Non reconnu. Réessaie ou utilise ton mot de passe.")
+  }, [session, onUnlock])
+  useEffect(() => { tryUnlock() }, [tryUnlock])
+  return (
+    <div className="pt-safe pb-safe mx-auto flex min-h-full max-w-md flex-col items-center bg-white px-6 pt-16 text-center">
+      <Brand />
+      <p className="mt-8 text-xl text-ink-soft">Bienvenue</p>
+      <p className="text-2xl font-medium">{me.name}</p>
+      <button onClick={tryUnlock} disabled={busy} aria-label="Déverrouiller avec l'empreinte ou le visage"
+        className="mt-12 flex h-28 w-28 items-center justify-center rounded-full border-4 border-sun-500 bg-sun-50 active:scale-95">
+        <Fingerprint size={56} strokeWidth={1.4} />
+      </button>
+      <p className="mt-4 text-ink-muted">{busy ? 'Vérification…' : 'Touche pour déverrouiller'}</p>
+      {err && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
+      <button onClick={() => supabase.auth.signOut()} className="mt-auto mb-8 py-3 text-[15px] text-[#4A56E2]">Utiliser mon mot de passe</button>
+    </div>
+  )
+}
+
+/* ---------- Tirer vers le bas pour actualiser (mobile) ---------- */
+function usePullToRefresh(onRefresh: () => Promise<void>, enabled: boolean) {
+  const [pull, setPull] = useState(0)
+  const [spinning, setSpinning] = useState(false)
+  const start = useRef<number | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    const sheetOpen = () => !!document.querySelector('[data-sheet]')
+    const ts = (e: TouchEvent) => { start.current = window.scrollY <= 0 && !sheetOpen() ? e.touches[0].clientY : null }
+    const tm = (e: TouchEvent) => {
+      if (start.current == null) return
+      const dy = e.touches[0].clientY - start.current
+      setPull(dy > 0 ? Math.min(dy * 0.45, 90) : 0)
+    }
+    const te = async () => {
+      if (start.current == null) return
+      start.current = null
+      setPull((p) => {
+        if (p > 60) {
+          setSpinning(true)
+          onRefresh().finally(() => { setSpinning(false); setPull(0) })
+          return 60
+        }
+        return 0
+      })
+    }
+    window.addEventListener('touchstart', ts, { passive: true })
+    window.addEventListener('touchmove', tm, { passive: true })
+    window.addEventListener('touchend', te)
+    return () => { window.removeEventListener('touchstart', ts); window.removeEventListener('touchmove', tm); window.removeEventListener('touchend', te) }
+  }, [onRefresh, enabled])
+  return { pull, spinning }
+}
 
 function Shell() {
-  const { session, authReady, carnet, carnetReady, profile, profileReady } = useData()
+  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile } = useData()
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [formKind, setFormKind] = useState<Kind>('depense')
   const [editing, setEditing] = useState<Tx | null>(null)
   const [allOpen, setAllOpen] = useState(false)
+  const [locked, setLocked] = useState(false)
+  const [askBio, setAskBio] = useState(false)
+  const [bioMsg, setBioMsg] = useState('')
+  const uid = session?.user.id ?? null
+  const checkedFor = useRef<string | null>(null)
 
   // Le bouton retour d'Android ferme la sous-page ouverte
   useEffect(() => {
@@ -35,30 +107,54 @@ function Shell() {
   const openSub = (p: SubPage) => { history.pushState({ p }, ''); setSub(p) }
   const closeSub = () => { if (history.state?.p) history.back(); else setSub(null) }
 
+  // À l'ouverture : verrou empreinte, et proposition de l'activer après une connexion par mot de passe
+  useEffect(() => {
+    if (!uid || checkedFor.current === uid) return
+    checkedFor.current = uid
+    if (biometricEnabled(uid)) setLocked(true)
+    else {
+      let asked = false
+      try { asked = localStorage.getItem(`bf-bio-ask-${uid}`) === '1' } catch { /* ignore */ }
+      if (!asked) biometricAvailable().then((ok) => { if (ok) setAskBio(true) })
+    }
+  }, [uid])
+
+  // Déconnexion automatique à 8 h et 18 h
+  useEffect(() => {
+    if (!uid) return
+    const check = () => {
+      if (!sessionExpired(uid)) return
+      if (biometricEnabled(uid)) setLocked(true)
+      else {
+        try { sessionStorage.setItem(AUTO_OUT_KEY, '1') } catch { /* ignore */ }
+        supabase.auth.signOut()
+      }
+    }
+    check()
+    const t = setInterval(check, 60_000)
+    const v = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', v)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', v) }
+  }, [uid])
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([loadCarnet(), reloadProfile()])
+    await reload()
+  }, [loadCarnet, reloadProfile, reload])
+  const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  const { pull, spinning } = usePullToRefresh(refreshAll, !!session && !locked && isTouch)
+
   if (!authReady || (session && (!carnetReady || !profileReady))) {
     return <div className="flex h-full items-center justify-center bg-white"><div className="h-10 w-10 animate-spin rounded-full border-4 border-sun-100 border-t-sun-500" /></div>
   }
   if (!session) return <AuthScreen />
+  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
   if (!profile?.onboarded) return <ProfileSetup />
   if (!carnet) return <OnboardingScreen />
 
   const openForm = (t: Tx | null, k: Kind = 'depense') => { setEditing(t); setFormKind(k); setFormOpen(true) }
-
-  if (sub) {
-    return (
-      <div className="mx-auto min-h-full max-w-lg bg-white pb-10">
-        <Header title={SUB_TITLES[sub]} onBack={closeSub} />
-        {sub === 'budget' && <BudgetPage />}
-        {sub === 'objectifs' && <GoalsPage />}
-        {sub === 'dettes' && <DebtsPage />}
-        {sub === 'categories' && <CategoriesPage />}
-        {sub === 'comptes' && <AccountsPage />}
-        {sub === 'membres' && <MembersPage />}
-        {sub === 'partage' && <SharePage />}
-        {sub === 'profil' && <ProfilePage />}
-      </div>
-    )
-  }
+  const goTab = (k: Tab) => { if (sub) closeSub(); setTab(k) }
+  const me = userInfo(session, profile)
 
   const tabs: { k: Tab; label: string; Icon: typeof Home }[] = [
     { k: 'accueil', label: 'Accueil', Icon: Home },
@@ -71,34 +167,108 @@ function Shell() {
       <Icon size={24} strokeWidth={tab === k ? 2.2 : 1.7} className={tab === k ? 'text-sun-500' : ''} />{label}
     </button>
   )
+  const SideLink = ({ active, onClick, Icon, label }: { active?: boolean; onClick: () => void; Icon: typeof Home; label: string }) => (
+    <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition ${active ? 'bg-white/10 text-white' : 'text-neutral-400 hover:bg-white/5 hover:text-white'}`}>
+      <Icon size={22} strokeWidth={active ? 2.2 : 1.7} className={active ? 'text-sun-500' : ''} />{label}
+    </button>
+  )
 
   return (
-    <div className={`mx-auto min-h-full max-w-lg pb-28 ${tab === 'accueil' ? 'bg-white' : 'bg-white'}`}>
-      {tab === 'accueil' && (
-        <AccueilScreen onEdit={(t) => openForm(t)} onAdd={(k) => openForm(null, k)} openSub={openSub}
-          goCharts={() => setTab('graphiques')} openAll={() => setAllOpen(true)} goAccount={() => setTab('compte')} />
-      )}
-      {tab === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
-      {tab === 'graphiques' && <GraphiquesScreen />}
-      {tab === 'compte' && <CompteScreen open={openSub} />}
-
-      <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-ink">
-        <div className="relative mx-auto flex max-w-lg items-end px-1">
-          <NavBtn {...tabs[0]} />
-          <NavBtn {...tabs[1]} />
-          <div className="flex flex-1 justify-center">
-            <button aria-label="Ajouter une opération" onClick={() => openForm(null)}
-              className="-mt-7 mb-2 flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border-4 border-ink bg-sun-500 text-ink shadow-lg active:scale-95">
-              <Plus size={32} strokeWidth={2.4} />
-            </button>
-          </div>
-          <NavBtn {...tabs[2]} />
-          <NavBtn {...tabs[3]} />
+    <div className="min-h-full bg-white lg:bg-cream lg:pl-72">
+      {/* Indicateur « tirer pour actualiser » */}
+      {(pull > 0 || spinning) && (
+        <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex justify-center" style={{ transform: `translateY(${Math.max(pull, spinning ? 60 : 0) - 20}px)` }}>
+          <div className="pt-safe"><div className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg">
+            <RefreshCw size={22} className={spinning ? 'animate-spin text-sun-600' : 'text-ink'} style={{ transform: spinning ? undefined : `rotate(${pull * 4}deg)`, opacity: Math.min(1, pull / 60) + (spinning ? 1 : 0) }} />
+          </div></div>
         </div>
-      </nav>
+      )}
+
+      {/* Barre latérale (ordinateur) */}
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-ink p-5 text-white lg:flex">
+        <div className="mb-8 flex items-center gap-3 px-2">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sun-500 text-ink"><Wallet size={24} /></div>
+          <p className="text-xl font-bold">Budget<span className="text-sun-500">Famille</span></p>
+        </div>
+        <button onClick={() => openForm(null)} className="btn-primary mb-6 w-full"><Plus size={20} /> Nouvelle opération</button>
+        <nav className="space-y-1">
+          {tabs.map((t) => <SideLink key={t.k} active={!sub && tab === t.k} onClick={() => goTab(t.k)} Icon={t.Icon} label={t.label} />)}
+        </nav>
+        <p className="mb-2 mt-8 px-4 text-xs uppercase tracking-wider text-neutral-500">Suivi</p>
+        <nav className="space-y-1">
+          <SideLink active={sub === 'budget'} onClick={() => openSub('budget')} Icon={Target} label="Budget du mois" />
+          <SideLink active={sub === 'objectifs'} onClick={() => openSub('objectifs')} Icon={PiggyBank} label="Épargne" />
+          <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
+        </nav>
+        <div className="mt-auto space-y-2">
+          <SideLink onClick={refreshAll} Icon={RefreshCw} label="Actualiser" />
+          <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sun-500 font-semibold text-ink">{me.initials}</div>
+            <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{me.name}</p><p className="truncate text-xs text-neutral-400">{carnet.name}</p></div>
+            <button onClick={() => supabase.auth.signOut()} aria-label="Se déconnecter" className="rounded-full p-2 text-neutral-400 hover:bg-white/10 hover:text-white"><LogOut size={18} /></button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="mx-auto min-h-full max-w-lg bg-white pb-28 lg:my-6 lg:max-w-6xl lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm">
+        {sub ? (
+          <div className="lg:mx-auto lg:max-w-3xl">
+            <Header title={SUB_TITLES[sub]} onBack={closeSub} />
+            {sub === 'budget' && <BudgetPage />}
+            {sub === 'objectifs' && <GoalsPage />}
+            {sub === 'dettes' && <DebtsPage />}
+            {sub === 'categories' && <CategoriesPage />}
+            {sub === 'comptes' && <AccountsPage />}
+            {sub === 'membres' && <MembersPage />}
+            {sub === 'partage' && <SharePage />}
+            {sub === 'profil' && <ProfilePage />}
+          </div>
+        ) : (
+          <>
+            {tab === 'accueil' && (
+              <AccueilScreen onEdit={(t) => openForm(t)} onAdd={(k) => openForm(null, k)} openSub={openSub} onRefresh={refreshAll}
+                goCharts={() => setTab('graphiques')} openAll={() => setAllOpen(true)} goAccount={() => setTab('compte')} />
+            )}
+            {tab === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
+            {tab === 'graphiques' && <GraphiquesScreen />}
+            {tab === 'compte' && <div className="lg:mx-auto lg:max-w-3xl"><CompteScreen open={openSub} /></div>}
+          </>
+        )}
+      </main>
+
+      {!sub && (
+        <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-ink lg:hidden">
+          <div className="relative mx-auto flex max-w-lg items-end px-1">
+            <NavBtn {...tabs[0]} />
+            <NavBtn {...tabs[1]} />
+            <div className="flex flex-1 justify-center">
+              <button aria-label="Ajouter une opération" onClick={() => openForm(null)}
+                className="-mt-7 mb-2 flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border-4 border-ink bg-sun-500 text-ink shadow-lg active:scale-95">
+                <Plus size={32} strokeWidth={2.4} />
+              </button>
+            </div>
+            <NavBtn {...tabs[2]} />
+            <NavBtn {...tabs[3]} />
+          </div>
+        </nav>
+      )}
 
       <TxForm open={formOpen} onClose={() => setFormOpen(false)} tx={editing} initialKind={formKind} />
       <AllSheet open={allOpen} onClose={() => setAllOpen(false)} onAdd={(k) => openForm(null, k)} openSub={openSub} goCharts={() => setTab('graphiques')} />
+
+      <Sheet open={askBio} onClose={() => { setAskBio(false); try { localStorage.setItem(`bf-bio-ask-${uid}`, '1') } catch { /* ignore */ } }} title="Connexion rapide">
+        <div className="space-y-4 text-center">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-sun-100"><Fingerprint size={44} strokeWidth={1.4} /></div>
+          <p className="text-ink-soft">Ouvre l'application avec ton <b>empreinte</b> ou ton <b>visage</b>, sans retaper ton mot de passe.</p>
+          {bioMsg && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{bioMsg}</p>}
+          <button className="btn-primary w-full" onClick={async () => {
+            const e = await enableBiometric(uid!, session.user.email ?? '')
+            if (e) setBioMsg(e)
+            else { try { localStorage.setItem(`bf-bio-ask-${uid}`, '1') } catch { /* ignore */ } setAskBio(false) }
+          }}>Activer</button>
+          <button className="w-full py-2 text-ink-muted" onClick={() => { setAskBio(false); try { localStorage.setItem(`bf-bio-ask-${uid}`, '1') } catch { /* ignore */ } }}>Plus tard</button>
+        </div>
+      </Sheet>
     </div>
   )
 }

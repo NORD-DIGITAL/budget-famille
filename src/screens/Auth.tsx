@@ -3,6 +3,7 @@ import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import logo from '../assets/logo.png'
+import { markAuth } from '../lib/lock'
 
 const PREFIXES = ['032', '033', '034', '036', '037', '038']
 
@@ -39,6 +40,7 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ t: 'err' | 'ok'; s: string } | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
+  const [autoOut] = useState(() => { try { const v = sessionStorage.getItem('bf-auto-logout') === '1'; sessionStorage.removeItem('bf-auto-logout'); return v } catch { return false } })
 
   const ready = mode === 'login' ? !!(email && pwd) : !!(name.trim() && email && phone.replace(/\D/g, '').length === 7 && pwd && pwd2)
 
@@ -46,7 +48,8 @@ export function AuthScreen() {
     e.preventDefault(); setMsg(null); setUnconfirmed(false)
     if (mode === 'login') {
       setBusy(true)
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pwd })
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pwd })
+      if (data.user) markAuth(data.user.id)
       if (error) {
         if (error.message === 'Email not confirmed') { setUnconfirmed(true); setMsg({ t: 'err', s: "Ton email n'est pas encore confirmé." }) }
         else setMsg({ t: 'err', s: 'Email ou mot de passe incorrect.' })
@@ -65,6 +68,7 @@ export function AuthScreen() {
       options: { data: { full_name: name.trim(), phone: `+261${prefix.slice(1)}${digits}`, phone_local: `${prefix} ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}` } },
     })
     setBusy(false)
+    if (data.user && data.session) markAuth(data.user.id)
     if (error) setMsg({ t: 'err', s: error.message.includes('already registered') ? 'Un compte existe déjà avec cet email.' : error.message })
     else if (!data.session) { setMsg({ t: 'ok', s: 'Compte créé ! Ouvre le lien reçu par email (regarde aussi dans Spam), puis connecte-toi.' }); setMode('login'); setPwd2('') }
   }
@@ -86,6 +90,7 @@ export function AuthScreen() {
         <p className="text-sm text-ink-muted">{mode === 'login' ? 'Connecte-toi pour retrouver le carnet de ta famille.' : 'Quelques infos pour commencer.'}</p>
       </div>
 
+      {autoOut && mode === 'login' && <p className="mb-4 rounded-2xl bg-sun-100 px-4 py-3 text-sm">Déconnexion automatique (8 h / 18 h) pour protéger tes données. Reconnecte-toi.</p>}
       <form onSubmit={submit} className="flex flex-col gap-4">
         {mode === 'signup' && (
           <div><label className="label" htmlFor="name">Nom et prénom</label><input id="name" className="input" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} /></div>

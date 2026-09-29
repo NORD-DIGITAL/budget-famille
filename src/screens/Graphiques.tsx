@@ -3,7 +3,8 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieCh
 import { useData } from '../lib/data'
 import { addMonths, daysInMonth, fmt, monthShort, signed, todayISO } from '../lib/format'
 import type { Kind } from '../lib/types'
-import { BareIcon, Empty, Header, IconTile, MonthBar, Segmented, Progress } from '../components/ui'
+import { BareIcon, Empty, Header, IconTile, Segmented, Progress } from '../components/ui'
+import { MonthBar } from '../components/DatePicker'
 
 type Tab = 'global' | 'cat' | 'rd' | 'net'
 const short = (n: number) => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + 'M' : Math.abs(n) >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n)
@@ -77,7 +78,7 @@ export default function GraphiquesScreen() {
   return (
     <>
       <Header title="Graphiques" />
-      <div className="space-y-3 px-5">
+      <div className="space-y-3 px-5 lg:mx-auto lg:max-w-4xl">
         <MonthBar />
         <div className="flex gap-2">
           {([['global', 'Global'], ['cat', 'Catégories'], ['rd', 'Évolution'], ['net', 'Valeur nette']] as [Tab, string][]).map(([k, l]) => (
@@ -86,7 +87,7 @@ export default function GraphiquesScreen() {
         </div>
       </div>
 
-      <div className="space-y-4 px-5 py-4">
+      <div className="space-y-4 px-5 py-4 lg:mx-auto lg:max-w-4xl">
         {tab === 'global' && (() => {
           const inc = revAll.total, exp = depAll.total, sol = inc - exp
           const rate = inc > 0 ? Math.round((sol / inc) * 100) : null
@@ -94,13 +95,16 @@ export default function GraphiquesScreen() {
           const monthTx = txs.filter((t) => t.occurred_on.startsWith(month))
           const biggest = monthTx.filter((t) => t.kind === 'depense').sort((a, b) => b.amount - a.amount).slice(0, 5)
           const kids = new Map<string, number>()
-          for (const t of monthTx) if (t.kind === 'depense' && t.child_name) kids.set(t.child_name, (kids.get(t.child_name) ?? 0) + t.amount)
+          for (const t of monthTx) if (t.kind === 'depense' && t.child_name) {
+            const names = t.child_name.split(', ')
+            for (const n of names) kids.set(n, (kids.get(n) ?? 0) + Math.round(t.amount / names.length))
+          }
           const saved = goals.reduce((a, g) => a + g.saved_amount, 0), target = goals.reduce((a, g) => a + g.target_amount, 0)
           const owe = debts.filter((d) => d.direction === 'je_dois').reduce((a, d) => a + Math.max(0, d.amount - d.paid), 0)
           const owed = debts.filter((d) => d.direction === 'on_me_doit').reduce((a, d) => a + Math.max(0, d.amount - d.paid), 0)
           return (
             <>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">Revenus</p><p className="tabular text-lg font-semibold">{fmt(inc, cur)}</p></div>
                 <div className="rounded-2xl bg-red-50 p-4"><p className="text-xs text-red-700">Dépenses</p><p className="tabular text-lg font-semibold">{fmt(exp, cur)}</p></div>
                 <div className="rounded-2xl bg-sun-100 p-4"><p className="text-xs">Solde du mois</p><p className={`tabular text-lg font-semibold ${sol < 0 ? 'text-red-600' : ''}`}>{signed(sol, cur)}</p></div>

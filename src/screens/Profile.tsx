@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Info, Minus, Plus, ShieldCheck } from 'lucide-react'
+import { Info, Minus, Plus, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { Sheet } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
+import { DateField } from '../components/DatePicker'
 import type { Child, Profile } from '../lib/types'
 import { Brand } from './Auth'
 
@@ -15,7 +17,7 @@ const PREFIXES = ['032', '033', '034', '036', '037', '038']
 
 type Form = {
   full_name: string; birth_date: string; sex: Profile['sex']; region: string; city: string; profession: string
-  marital_status: Profile['marital_status']; children: { name: string; age: string }[]; prefix: string; phone: string
+  marital_status: Profile['marital_status']; children: { name: string; age: string; school: boolean | null }[]; prefix: string; phone: string
 }
 
 function useProfileForm() {
@@ -26,7 +28,7 @@ function useProfileForm() {
     full_name: profile?.full_name ?? md.full_name ?? '',
     birth_date: profile?.birth_date ?? '', sex: profile?.sex ?? null, region: profile?.region ?? '', city: profile?.city ?? '',
     profession: profile?.profession ?? '', marital_status: profile?.marital_status ?? null,
-    children: (profile?.children ?? []).map((c) => ({ name: c.name, age: c.age == null ? '' : String(c.age) })),
+    children: (profile?.children ?? []).map((c) => ({ name: c.name, age: c.age == null ? '' : String(c.age), school: c.school ?? null })),
     prefix: digits.slice(0, 3) || '034', phone: digits.slice(3),
   })
   const [f, setF] = useState<Form>(init)
@@ -36,7 +38,7 @@ function useProfileForm() {
 }
 
 async function saveProfile(uid: string, f: Form) {
-  const children: Child[] = f.children.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), age: c.age === '' ? null : Math.max(0, Math.min(40, Number(c.age))) }))
+  const children: Child[] = f.children.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), age: c.age === '' ? null : Math.max(0, Math.min(40, Number(c.age))), ...(c.school == null ? {} : { school: c.school }) }))
   const { error } = await supabase.from('profiles').upsert({
     id: uid, full_name: f.full_name.trim() || null, birth_date: f.birth_date || null, sex: f.sex, region: f.region || null,
     city: f.city.trim() || null, profession: f.profession.trim() || null, marital_status: f.marital_status, children, onboarded: true,
@@ -65,10 +67,10 @@ function Chips<T extends string>({ value, onChange, options }: { value: T | null
 function ProfileFields({ f, setF }: { f: Form; setF: (f: Form) => void }) {
   const setKids = (n: number) => {
     const kids = [...f.children]
-    while (kids.length < n) kids.push({ name: '', age: '' })
+    while (kids.length < n) kids.push({ name: '', age: '', school: null })
     setF({ ...f, children: kids.slice(0, n) })
   }
-  const setKid = (i: number, patch: Partial<{ name: string; age: string }>) =>
+  const setKid = (i: number, patch: Partial<{ name: string; age: string; school: boolean | null }>) =>
     setF({ ...f, children: f.children.map((c, j) => (j === i ? { ...c, ...patch } : c)) })
 
   return (
@@ -83,7 +85,7 @@ function ProfileFields({ f, setF }: { f: Form; setF: (f: Form) => void }) {
           <input id="p-phone" className="input tabular flex-1" inputMode="numeric" placeholder="12 345 67" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value.replace(/\D/g, '').slice(0, 7) })} />
         </div>
       </div>
-      <div><label className="label" htmlFor="p-birth">Date de naissance</label><input id="p-birth" type="date" className="input" value={f.birth_date} onChange={(e) => setF({ ...f, birth_date: e.target.value })} /></div>
+      <div><label className="label" htmlFor="p-birth">Date de naissance</label><DateField id="p-birth" value={f.birth_date} clearable placeholder="Choisir ta date de naissance" startYear={1990} max={new Date().toISOString().slice(0, 10)} onChange={(v) => setF({ ...f, birth_date: v })} /></div>
       <div><p className="label">Sexe</p><Chips value={f.sex} onChange={(v) => setF({ ...f, sex: v })} options={[['homme', 'Homme'], ['femme', 'Femme']]} /></div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -107,9 +109,18 @@ function ProfileFields({ f, setF }: { f: Form; setF: (f: Form) => void }) {
         {f.children.length > 0 && (
           <div className="mt-3 space-y-2">
             {f.children.map((c, i) => (
-              <div key={i} className="flex gap-2">
-                <input className="input flex-1" placeholder={`Prénom de l'enfant ${i + 1}`} value={c.name} onChange={(e) => setKid(i, { name: e.target.value })} aria-label={`Prénom de l'enfant ${i + 1}`} />
-                <input className="input tabular w-24 text-center" inputMode="numeric" placeholder="Âge" value={c.age} onChange={(e) => setKid(i, { age: e.target.value.replace(/\D/g, '').slice(0, 2) })} aria-label={`Âge de l'enfant ${i + 1}`} />
+              <div key={i} className="space-y-2 rounded-2xl border border-cream-line bg-cream-tile p-3">
+                <div className="flex gap-2">
+                  <input className="input flex-1 bg-white" placeholder={`Prénom de l'enfant ${i + 1}`} value={c.name} onChange={(e) => setKid(i, { name: e.target.value })} aria-label={`Prénom de l'enfant ${i + 1}`} />
+                  <input className="input tabular w-20 bg-white text-center" inputMode="numeric" placeholder="Âge" value={c.age} onChange={(e) => setKid(i, { age: e.target.value.replace(/\D/g, '').slice(0, 2) })} aria-label={`Âge de l'enfant ${i + 1}`} />
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-ink-muted">Va à l'école ?</span>
+                  {([[true, 'Oui'], [false, 'Non']] as [boolean, string][]).map(([v, l]) => (
+                    <button key={l} type="button" onClick={() => setKid(i, { school: c.school === v ? null : v })}
+                      className={`rounded-full border px-4 py-1.5 transition ${c.school === v ? 'border-ink bg-ink text-white' : 'border-cream-line bg-white'}`}>{l}</button>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -180,6 +191,67 @@ export function ProfilePage() {
       {msg && <p className={`rounded-2xl px-4 py-3 text-sm ${msg.t === 'err' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{msg.s}</p>}
       <button disabled={busy} onClick={save} className="btn-primary w-full">Enregistrer</button>
       <p className="flex items-center gap-2 text-xs text-ink-muted"><ShieldCheck size={16} className="shrink-0" /> Ton profil n'est visible que par toi et les personnes de tes carnets.</p>
+      <ResetSection />
     </div>
+  )
+}
+
+const RESET_WORD = 'SUPPRIMER'
+type ResetKey = 'transactions' | 'budgets' | 'savings_goals' | 'debts' | 'balances'
+const RESET_LABELS: [ResetKey, string][] = [
+  ['transactions', 'Toutes les opérations (dépenses et revenus)'], ['budgets', 'Les budgets'], ['savings_goals', "Les objectifs d'épargne"],
+  ['debts', 'Les dettes'], ['balances', 'Les soldes de départ des comptes (remis à 0)'],
+]
+
+/** Réinitialisation du carnet, protégée par un avertissement et une saisie de confirmation. */
+function ResetSection() {
+  const { carnet, reload, txs } = useData()
+  const [open, setOpen] = useState(false)
+  const [sel, setSel] = useState<Record<ResetKey, boolean>>({ transactions: true, budgets: true, savings_goals: true, debts: true, balances: false })
+  const [word, setWord] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState('')
+  const any = Object.values(sel).some(Boolean)
+
+  const run = async () => {
+    if (word.trim().toUpperCase() !== RESET_WORD || !carnet) return
+    setBusy(true)
+    for (const k of ['transactions', 'budgets', 'savings_goals', 'debts'] as const) if (sel[k]) await supabase.from(k).delete().eq('carnet_id', carnet.id)
+    if (sel.balances) await supabase.from('accounts').update({ initial_balance: 0 }).eq('carnet_id', carnet.id)
+    await reload()
+    setBusy(false); setOpen(false); setWord('')
+    setDone('Données supprimées. Tes catégories, comptes et membres sont conservés.')
+  }
+
+  return (
+    <section className="mt-6 space-y-3 rounded-2xl border border-red-200 p-4">
+      <h2 className="flex items-center gap-2 font-semibold text-red-600"><TriangleAlert size={18} /> Zone sensible</h2>
+      <p className="text-sm text-ink-soft">Remettre le carnet « {carnet?.name} » à zéro, par exemple pour repartir sur une nouvelle année.</p>
+      {done && <p className="rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">{done}</p>}
+      <button onClick={() => { setOpen(true); setDone('') }} className="btn w-full bg-red-50 text-red-600"><Trash2 size={18} /> Réinitialiser les données</button>
+
+      <Sheet open={open} onClose={() => setOpen(false)} title="Réinitialiser les données">
+        <div className="space-y-4">
+          <div className="flex gap-3 rounded-2xl bg-red-50 p-4 text-sm text-red-800">
+            <TriangleAlert size={20} className="mt-0.5 shrink-0" />
+            <p><b>Attention : cette action est définitive.</b> Les données cochées seront supprimées du carnet « {carnet?.name} » pour <b>toutes les personnes</b> qui le partagent ({txs.length} opérations actuellement). Pense à exporter une copie (Compte › Exporter) avant.</p>
+          </div>
+          <div className="space-y-2">
+            {RESET_LABELS.map(([k, l]) => (
+              <label key={k} className="flex items-center gap-3 rounded-2xl border border-cream-line bg-cream-tile px-4 py-3 text-[15px]">
+                <input type="checkbox" className="h-5 w-5 accent-red-500" checked={sel[k]} onChange={(e) => setSel({ ...sel, [k]: e.target.checked })} />{l}
+              </label>
+            ))}
+          </div>
+          <div>
+            <label className="label" htmlFor="reset-word">Pour confirmer, écris <b className="text-ink">{RESET_WORD}</b></label>
+            <input id="reset-word" className="input text-center uppercase tracking-widest" autoComplete="off" value={word} onChange={(e) => setWord(e.target.value)} />
+          </div>
+          <button onClick={run} disabled={busy || !any || word.trim().toUpperCase() !== RESET_WORD} className="btn w-full bg-red-500 text-white disabled:bg-neutral-200 disabled:text-neutral-500">
+            {busy ? 'Suppression…' : 'Supprimer définitivement'}
+          </button>
+        </div>
+      </Sheet>
+    </section>
   )
 }
