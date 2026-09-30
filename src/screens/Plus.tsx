@@ -154,7 +154,7 @@ function BiometricRow() {
     if (e) setMsg(e); else setOn(true)
   }
   return (
-    <Row icon={<Fingerprint size={26} strokeWidth={1.6} />} label="Connexion par empreinte / visage"
+    <Row icon={<Fingerprint size={26} strokeWidth={1.6} />} label="Connexion par empreinte / visage / code"
       sub={msg || (avail === false ? "Non disponible sur cet appareil ou ce navigateur" : on ? 'Activée · demandée à chaque ouverture' : 'Désactivée')}
       onClick={avail ? toggle : undefined}
       right={<span className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-sun-500' : 'bg-neutral-300'} ${avail === false ? 'opacity-40' : ''}`}>

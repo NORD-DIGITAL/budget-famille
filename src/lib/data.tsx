@@ -86,7 +86,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const loadCarnet = useCallback(async () => {
     if (!uid) { setCarnets([]); setCarnetReady(true); return }
-    const { data } = await supabase.rpc('my_carnets')
+    const { data } = await supabase.rpc('my_carnets_v3')
     setCarnets((data as Carnet[]) ?? [])
     setCarnetReady(true)
   }, [uid])

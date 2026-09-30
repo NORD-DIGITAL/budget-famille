@@ -42,7 +42,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
     setBusy(true); setErr('')
     const ok = await verifyBiometric(session!.user.id)
     setBusy(false)
-    if (ok) { markAuth(session!.user.id); onUnlock() } else setErr("Non reconnu. Réessaie ou utilise ton mot de passe.")
+    if (ok) { markAuth(session!.user.id); onUnlock() } else setErr("Non reconnu. Réessaie (empreinte, visage ou code du téléphone) ou utilise ton mot de passe.")
   }, [session, onUnlock])
   useEffect(() => { tryUnlock() }, [tryUnlock])
   return (
@@ -50,7 +50,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       <Brand />
       <p className="mt-8 text-xl text-ink-soft">Bienvenue</p>
       <p className="text-2xl font-medium">{me.name}</p>
-      <button onClick={tryUnlock} disabled={busy} aria-label="Déverrouiller avec l'empreinte ou le visage"
+      <button onClick={tryUnlock} disabled={busy} aria-label="Déverrouiller avec l'empreinte, le visage ou le code du téléphone"
         className="mt-12 flex h-28 w-28 items-center justify-center rounded-full border-4 border-sun-500 bg-sun-50 active:scale-95">
         <Fingerprint size={56} strokeWidth={1.4} />
       </button>
@@ -301,7 +301,7 @@ function Shell() {
       <Sheet open={askBio} onClose={() => { setAskBio(false); try { localStorage.setItem(`bf-bio-ask-${uid}`, '1') } catch { /* ignore */ } }} title="Connexion rapide">
         <div className="space-y-4 text-center">
           <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-sun-100"><Fingerprint size={44} strokeWidth={1.4} /></div>
-          <p className="text-ink-soft">Ouvre l'application avec ton <b>empreinte</b> ou ton <b>visage</b>, sans retaper ton mot de passe.</p>
+          <p className="text-ink-soft">Ouvre l'application avec ton <b>empreinte</b>, ton <b>visage</b> ou le <b>code de ton téléphone</b>, sans retaper ton mot de passe.</p>
           {bioMsg && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{bioMsg}</p>}
           <button className="btn-primary w-full" onClick={async () => {
             const e = await enableBiometric(uid!, session.user.email ?? '')

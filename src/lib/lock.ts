@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core'
-import { NativeBiometric } from '@capgo/capacitor-native-biometric'
+import { BiometryType, NativeBiometric } from '@capgo/capacitor-native-biometric'
 
 /**
  * Déverrouillage par empreinte / visage :
@@ -16,7 +16,7 @@ const rand = (n = 32) => crypto.getRandomValues(new Uint8Array(n))
 
 export async function biometricAvailable(): Promise<boolean> {
   try {
-    if (isNative()) return (await NativeBiometric.isAvailable()).isAvailable
+    if (isNative()) return (await NativeBiometric.isAvailable({ useFallback: true })).isAvailable
     return !!window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()
   } catch { return false }
 }
@@ -24,7 +24,14 @@ export async function biometricAvailable(): Promise<boolean> {
 export const biometricEnabled = (uid: string) => get(`bf-bio-${uid}`) === '1'
 
 async function verifyNative() {
-  await NativeBiometric.verifyIdentity({ title: 'Budget.Go.Family', subtitle: 'Déverrouiller', description: 'Utilise ton empreinte ou ton visage', negativeButtonText: 'Annuler', maxAttempts: 5 })
+  // Empreinte / visage d'abord ; si ça échoue ou si le capteur est indisponible,
+  // le téléphone propose automatiquement son code de verrouillage (PIN, schéma, mot de passe).
+  await NativeBiometric.verifyIdentity({
+    title: 'Budget.Go.Family', subtitle: 'Déverrouiller',
+    description: 'Empreinte, visage ou code du téléphone',
+    useFallback: true, fallbackTitle: 'Utiliser le code du téléphone', maxAttempts: 5,
+    allowedBiometryTypes: [BiometryType.FINGERPRINT, BiometryType.FACE_AUTHENTICATION, BiometryType.IRIS_AUTHENTICATION, BiometryType.DEVICE_CREDENTIAL],
+  })
 }
 
 /** Active le déverrouillage : demande une première vérification. */

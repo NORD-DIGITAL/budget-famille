@@ -235,7 +235,7 @@ export function SharePage() {
   }
   const join = async () => {
     setBusy(true); setMsg(null)
-    const { data, error } = await supabase.rpc('join_carnet', { p_code: code })
+    const { data, error } = await supabase.rpc('join_carnet_v3', { p_code: code })
     setBusy(false)
     if (error) return setMsg({ t: 'err', s: error.message.includes('invalide') ? 'Code invalide. Vérifie les 8 caractères.' : error.message })
     await loadCarnet(); switchCarnet(data as string); setCode('')

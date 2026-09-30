@@ -156,13 +156,13 @@ export function OnboardingScreen() {
 
   const create = async () => {
     setBusy(true); setErr('')
-    const { error } = await supabase.rpc('create_carnet', { p_name: name })
+    const { error } = await supabase.rpc('create_carnet_v3', { p_name: name })
     if (error) setErr(error.message); else await loadCarnet()
     setBusy(false)
   }
   const join = async () => {
     setBusy(true); setErr('')
-    const { error } = await supabase.rpc('join_carnet', { p_code: code })
+    const { error } = await supabase.rpc('join_carnet_v3', { p_code: code })
     if (error) setErr(error.message.includes('invalide') ? 'Code invalide.' : error.message); else await loadCarnet()
     setBusy(false)
   }

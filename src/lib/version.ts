@@ -6,8 +6,8 @@ import { supabase } from './supabase'
  * Numéro de version de l'application (à augmenter à chaque mise à jour publiée).
  * Règle NORD DIGITAL : si APP_VERSION < min_version (table app_config), l'application est bloquée.
  */
-export const APP_VERSION = 30
-export const APP_LABEL = '3.0'
+export const APP_VERSION = 31
+export const APP_LABEL = '3.1'
 export const isNative = Capacitor.isNativePlatform()
 export const OLD_VERSION_MSG = "Vous utilisez l'ancienne version de Budget.Go.Family, merci de contacter Nord Digital svp."
 
