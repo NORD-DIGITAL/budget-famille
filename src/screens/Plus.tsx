@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, Inbox, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
+import { ChevronRight, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { saveTextFile, slug, stamp, toCsv } from '../lib/files'
@@ -7,16 +7,17 @@ import { useData } from '../lib/data'
 import { userInfo } from '../lib/prefs'
 import type { Kind } from '../lib/types'
 import { ByNord, Header, Row, Sheet } from '../components/ui'
-import { useInboxCount } from './Feedback'
+import { useBadge } from '../lib/inbox'
+import { APP_LABEL } from '../lib/version'
 import { SubscriptionCard } from './GoCode'
 import { CarnetSwitcher } from '../components/Carnets'
 import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeForCarnet } from '../lib/theme'
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
-export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité',
 }
 
 function useExportCsv() {
@@ -38,7 +39,7 @@ function useExportCsv() {
 /** Page « Mon compte » : profil + liste des réglages. */
 export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
   const { session, profile, carnet, isAdmin } = useData()
-  const inboxN = useInboxCount()
+  const inboxN = useBadge()
   const me = userInfo(session, profile)
   const csv = useExportCsv()
   const [confirmOut, setConfirmOut] = useState(false)
@@ -72,15 +73,16 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <BiometricRow />
         <Row icon={ico(Lightbulb)} label="Remarque / suggestion" sub="Proposer une amélioration" onClick={() => open('remarques')} />
         {isAdmin && <Row icon={ico(Users)} label="Utilisateurs" sub="Comptes, jours restants, Go Codes (admin)" onClick={() => open('users')} />}
-        {isAdmin && <Row icon={ico(Inbox)} label="Boîte de réception" sub="Remarques des utilisateurs (admin)" onClick={() => open('inbox')}
-          right={<span className="flex items-center gap-2">{inboxN > 0 && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">{inboxN}</span>}<ChevronRight size={22} className="text-neutral-400" /></span>} />}
+        <Row icon={ico(Inbox)} label="Boîte de réception" sub={isAdmin ? 'Remarques reçues · messages aux utilisateurs' : inboxN ? `${inboxN} message${inboxN > 1 ? 's' : ''} non lu${inboxN > 1 ? 's' : ''}` : "Messages de l'équipe NORD DIGITAL"} onClick={() => open('inbox')}
+          right={<span className="flex items-center gap-2">{inboxN > 0 && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">{inboxN}</span>}<ChevronRight size={22} className="text-neutral-400" /></span>} />
+        <Row icon={ico(ShieldCheck)} label="Politique de confidentialité" sub="Tes données et tes droits" onClick={() => open('confidentialite')} />
         <Row icon={ico(FileDown)} label="Exporter vers Excel (CSV)" sub={csv.status || undefined} onClick={csv.run} right={<span />} />
         <div className="border-b border-neutral-100 px-5 py-3"><CarnetSwitcher /></div>
         <Row icon={<LogOut size={26} strokeWidth={1.6} />} label={confirmOut ? 'Toucher encore pour confirmer' : 'Se déconnecter'} danger
           onClick={() => (confirmOut ? supabase.auth.signOut() : setConfirmOut(true))} />
       </div>
       <ByNord className="pt-6" />
-      <p className="pb-8 pt-1 text-center text-xs text-ink-muted">Budget.Go.Family · version 2.0 · carnet « {carnet?.name} »</p>
+      <p className="pb-8 pt-1 text-center text-xs text-ink-muted">Budget.Go.Family · version {APP_LABEL} · carnet « {carnet?.name} »</p>
     </>
   )
 }

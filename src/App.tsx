@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
+import { Ban, Download, UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { DataProvider, useData } from './lib/data'
 import { userInfo } from './lib/prefs'
@@ -20,7 +20,11 @@ import { BudgetPage } from './screens/Budget'
 import { DebtsPage, GoalsPage } from './screens/Savings'
 import { syncReminders } from './lib/reminders'
 import { CoursesPage } from './screens/Courses'
-import { FeedbackPage, InboxPage, useInboxCount } from './screens/Feedback'
+import { FeedbackPage, InboxPage } from './screens/Feedback'
+import { PrivacyPage } from './screens/Privacy'
+import { useBadge, useInboxSync } from './lib/inbox'
+import { APP_VERSION, OLD_VERSION_MSG, isNative, openApk, reloadLatestWeb, useAppConfig } from './lib/version'
+import type { AppConfig } from './lib/version'
 import { GoCodeScreen, hasAccess } from './screens/GoCode'
 import { UsersPage } from './screens/Admin'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
@@ -96,7 +100,8 @@ function Shell() {
   const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile, principalId, goals, isAdmin, expiresAt, accessReady } = useData()
   const [, setTick] = useState(0)
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 60_000); return () => clearInterval(t) }, [])
-  const inboxN = useInboxCount()
+  const inboxN = useBadge()
+  const cfg = useAppConfig()
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -109,6 +114,7 @@ function Shell() {
   const uid = session?.user.id ?? null
   const checkedFor = useRef<string | null>(null)
   const userTheme = useUserTheme(uid)
+  useInboxSync(uid, isAdmin)
   useEffect(() => { if (carnet) syncReminders(goals, carnet.name) }, [goals, carnet])
   useEffect(() => { applyTheme(themeForCarnet(carnet?.id ?? null, principalId, userTheme)) }, [carnet?.id, principalId, userTheme])
 
@@ -162,6 +168,7 @@ function Shell() {
   if (!authReady || (session && (!carnetReady || !profileReady || !accessReady))) {
     return <div className="flex h-full items-center justify-center bg-white"><div className="h-10 w-10 animate-spin rounded-full border-4 border-sun-100 border-t-sun-500" /></div>
   }
+  if (cfg && APP_VERSION < cfg.min) return <OldVersionScreen cfg={cfg} />
   if (!session) return <AuthScreen />
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
   if (!profile?.onboarded || !profile.full_name?.trim()) return <ProfileSetup />
@@ -180,12 +187,15 @@ function Shell() {
   ]
   const NavBtn = ({ k, label, Icon }: (typeof tabs)[number]) => (
     <button onClick={() => setTab(k)} className={`flex flex-1 flex-col items-center gap-1 pb-2.5 pt-3 text-[0.75rem] ${tab === k ? 'text-white' : 'text-neutral-400'}`}>
-      <Icon size={24} strokeWidth={tab === k ? 2.2 : 1.7} className={tab === k ? 'text-sun-500' : ''} />{label}
+      <span className="relative"><Icon size={24} strokeWidth={tab === k ? 2.2 : 1.7} className={tab === k ? 'text-sun-500' : ''} />
+        {k === 'compte' && inboxN > 0 && <span className="absolute -right-2.5 -top-1.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-red-500 px-1 text-[0.625rem] font-bold text-white ring-2 ring-ink">{inboxN > 99 ? '99+' : inboxN}</span>}
+      </span>{label}
     </button>
   )
-  const SideLink = ({ active, onClick, Icon, label }: { active?: boolean; onClick: () => void; Icon: typeof Home; label: string }) => (
+  const SideLink = ({ active, onClick, Icon, label, badge }: { active?: boolean; onClick: () => void; Icon: typeof Home; label: string; badge?: number }) => (
     <button onClick={onClick} className={`flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition ${active ? 'bg-white/10 text-white' : 'text-neutral-400 hover:bg-white/5 hover:text-white'}`}>
-      <Icon size={22} strokeWidth={active ? 2.2 : 1.7} className={active ? 'text-sun-500' : ''} />{label}
+      <span className="relative"><Icon size={22} strokeWidth={active ? 2.2 : 1.7} className={active ? 'text-sun-500' : ''} />{!!badge && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-ink" />}</span>
+      <span className="flex-1">{label}</span>{!!badge && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">{badge}</span>}
     </button>
   )
 
@@ -220,7 +230,7 @@ function Shell() {
         <div className="mt-auto space-y-2">
           <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
           {isAdmin && <SideLink active={sub === 'users'} onClick={() => openSub('users')} Icon={UsersRound} label="Utilisateurs" />}
-          {isAdmin && <SideLink active={sub === 'inbox'} onClick={() => openSub('inbox')} Icon={Inbox} label={`Boîte de réception${inboxN ? ` (${inboxN})` : ''}`} />}
+          <SideLink active={sub === 'inbox'} onClick={() => openSub('inbox')} Icon={Inbox} label="Boîte de réception" badge={inboxN} />
           <SideLink onClick={refreshAll} Icon={RefreshCw} label="Actualiser" />
           <CarnetSwitcher variant="dark" />
           <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
@@ -248,12 +258,18 @@ function Shell() {
             {sub === 'remarques' && <FeedbackPage />}
             {sub === 'inbox' && <InboxPage />}
             {sub === 'users' && <UsersPage />}
+            {sub === 'confidentialite' && <PrivacyPage />}
           </div>
         ) : (
           <>
+            {tab === 'accueil' && isNative && cfg && cfg.latest > APP_VERSION && cfg.apkUrl && (
+              <button onClick={() => openApk(cfg.apkUrl)} className="pt-safe flex w-full items-center gap-3 bg-ink px-5 py-3 text-left text-sm text-white">
+                <Download size={20} className="shrink-0 text-sun-500" /><span className="flex-1"><b>Nouvelle version disponible.</b> Touche ici pour la télécharger puis l'installer.</span>
+              </button>
+            )}
             {tab === 'accueil' && (
               <AccueilScreen onEdit={(t) => openForm(t)} onAdd={(k) => openForm(null, k)} openSub={openSub} onRefresh={refreshAll}
-                goCharts={() => setTab('graphiques')} openAll={() => setAllOpen(true)} goAccount={() => setTab('compte')} />
+                goCharts={() => setTab('graphiques')} openAll={() => setAllOpen(true)} />
             )}
             {tab === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
             {tab === 'graphiques' && <GraphiquesScreen />}
@@ -295,6 +311,23 @@ function Shell() {
           <button className="w-full py-2 text-ink-muted" onClick={() => { setAskBio(false); try { localStorage.setItem(`bf-bio-ask-${uid}`, '1') } catch { /* ignore */ } }}>Plus tard</button>
         </div>
       </Sheet>
+    </div>
+  )
+}
+
+/* ---------- Ancienne version bloquée (règle NORD DIGITAL) ---------- */
+function OldVersionScreen({ cfg }: { cfg: AppConfig }) {
+  return (
+    <div className="pt-safe pb-safe mx-auto flex min-h-full max-w-md flex-col items-center bg-white px-6 pt-16 text-center">
+      <Brand />
+      <div className="mt-10 flex h-20 w-20 items-center justify-center rounded-full bg-red-50"><Ban size={40} className="text-red-500" /></div>
+      <p className="mt-6 text-lg font-semibold">{OLD_VERSION_MSG}</p>
+      <p className="mt-2 text-sm text-ink-muted">Pour continuer, installe la nouvelle version de l'application.</p>
+      {isNative
+        ? cfg.apkUrl && <button onClick={() => openApk(cfg.apkUrl)} className="btn-primary mt-8 w-full"><Download size={20} /> Télécharger la nouvelle version</button>
+        : <button onClick={reloadLatestWeb} className="btn-primary mt-8 w-full"><RefreshCw size={20} /> Charger la nouvelle version</button>}
+      <a href="mailto:gosamsan1122@gmail.com" className="mt-4 py-2 text-sm text-[#4A56E2]">Contacter NORD DIGITAL</a>
+      <ByNord className="mb-6 mt-auto" />
     </div>
   )
 }

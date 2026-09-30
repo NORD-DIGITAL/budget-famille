@@ -1,14 +1,14 @@
 import type { ReactNode } from 'react'
-import {
-  ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home,
-  Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X,
-} from 'lucide-react'
+import { ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home, Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X, Cog, Sofa, PaintRoller, Lamp, SprayCan, WashingMachine, Plug } from 'lucide-react'
 import { Hand, Palette, Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
+  [/v[ée]hicule|voiture|moto\b/i, Car], [/carburant|essence|gasoil/i, Fuel], [/pi[èe]ce/i, Cog], [/r[ée]paration/i, Wrench],
+  [/^maison|meuble/i, Sofa], [/r[ée]novation/i, Hammer], [/peinture/i, PaintRoller], [/d[ée]coration/i, Lamp], [/entretien/i, SprayCan],
+  [/[ée]lectrom[ée]nager/i, WashingMachine], [/[ée]lectronique/i, Plug], [/^t[ée]l[ée]phone$/i, Smartphone], [/^achat$/i, ShoppingBag],
   [/beaut/i, Sparkles], [/coiffure|^taly|brushing/i, Scissors], [/maquillage/i, Palette], [/manucure|manicure/i, Hand],
   [/connectivit/i, Wifi], [/data mobile/i, Signal], [/wi-?fi/i, Wifi], [/cr[ée]dit t[ée]l/i, Smartphone], [/petit d[ée]j/i, Coffee],
   [/^lait|yaourt/i, Milk], [/couche/i, Baby], [/m[ée]dicament/i, Pill], [/v[êe]tement|lingerie/i, Shirt],
@@ -96,11 +96,11 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
   if (!open) return null
   return (
     <div data-sheet className="fixed inset-0 z-50 flex flex-col items-center justify-end bg-black/45 px-3 pt-10 lg:justify-center" onClick={onClose}>
-      <div className="flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white" onClick={(e) => e.stopPropagation()}>
+      <div className="flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white text-ink" onClick={(e) => e.stopPropagation()}>
         {title && <h2 className="px-6 pb-1 pt-6 text-xl font-semibold">{title}</h2>}
         <div className="overflow-y-auto px-6 pb-6 pt-3">{children}</div>
       </div>
-      <button aria-label="Fermer" onClick={onClose} className="pb-safe my-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white shadow-lg"><X size={28} strokeWidth={2} /></button>
+      <button aria-label="Fermer" onClick={onClose} className="pb-safe my-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-lg"><X size={28} strokeWidth={2} /></button>
     </div>
   )
 }

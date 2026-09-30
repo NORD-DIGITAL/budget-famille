@@ -5,6 +5,7 @@ import { useData } from '../lib/data'
 import { userInfo } from '../lib/prefs'
 import { ByNord, Sheet } from '../components/ui'
 import { Brand } from './Auth'
+import { APP_LABEL } from '../lib/version'
 
 export const PLANS: { days: number; label: string }[] = [
   { days: 30, label: '30 jours' }, { days: 90, label: '3 mois' }, { days: 180, label: '6 mois' }, { days: 365, label: '12 mois' },
@@ -25,7 +26,7 @@ function useRedeem() {
   const redeem = async () => {
     if (!/^BF[A-Z0-9]{8}$/.test(code)) return setMsg({ t: 'err', s: 'Le Go Code a 10 caractères et commence par BF.' })
     setBusy(true); setMsg(null)
-    const { data, error } = await supabase.rpc('redeem_go_code', { p_code: code })
+    const { data, error } = await supabase.rpc('redeem_go_code_v3', { p_code: code })
     setBusy(false)
     if (error) return setMsg({ t: 'err', s: error.message.replace(/^.*?: /, '') })
     setMsg({ t: 'ok', s: `Go Code activé ! Accès jusqu'au ${fmtDay(data as string)}.` }); setCode('')
@@ -53,7 +54,7 @@ export function GoCodeScreen() {
   const r = useRedeem()
   const [sent, setSent] = useState(false)
   const ask = async () => {
-    await supabase.from('feedback').insert({ kind: 'autre', message: `Demande de Go Code — ${me.name} (${me.email}${me.phone ? ', ' + me.phone : ''}).`, sender_name: me.name, app_version: '2.2' })
+    await supabase.from('feedback').insert({ kind: 'autre', message: `Demande de Go Code — ${me.name} (${me.email}${me.phone ? ', ' + me.phone : ''}).`, sender_name: me.name, app_version: APP_LABEL })
     setSent(true)
   }
   return (

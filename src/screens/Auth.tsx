@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import logo from '../assets/logo.png'
 import { markAuth } from '../lib/lock'
-import { ByNord, Wordmark } from '../components/ui'
+import { ByNord, Sheet, Wordmark } from '../components/ui'
+import { PRIVACY_VERSION, PrivacyText } from './Privacy'
 
 const PREFIXES = ['032', '033', '034', '036', '037', '038']
 
@@ -38,12 +39,14 @@ export function AuthScreen() {
   const [pwd2, setPwd2] = useState('')
   const [prefix, setPrefix] = useState('034')
   const [phone, setPhone] = useState('')
+  const [agree, setAgree] = useState(false)
+  const [showPolicy, setShowPolicy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<{ t: 'err' | 'ok'; s: string } | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
   const [autoOut] = useState(() => { try { const v = sessionStorage.getItem('bf-auto-logout') === '1'; sessionStorage.removeItem('bf-auto-logout'); return v } catch { return false } })
 
-  const ready = mode === 'login' ? !!(email && pwd) : !!(name.trim() && email && phone.replace(/\D/g, '').length === 7 && pwd && pwd2)
+  const ready = mode === 'login' ? !!(email && pwd) : !!(name.trim() && email && phone.replace(/\D/g, '').length === 7 && pwd && pwd2 && agree)
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg(null); setUnconfirmed(false)
@@ -63,10 +66,11 @@ export function AuthScreen() {
     if (digits.length !== 7) return setMsg({ t: 'err', s: 'Numéro : 7 chiffres après le préfixe (ex : 034 12 345 67).' })
     if (pwd.length < 6) return setMsg({ t: 'err', s: 'Mot de passe : 6 caractères minimum.' })
     if (pwd !== pwd2) return setMsg({ t: 'err', s: 'Les deux mots de passe ne sont pas identiques.' })
+    if (!agree) return setMsg({ t: 'err', s: 'Accepte la politique de confidentialité pour créer ton compte.' })
     setBusy(true)
     const { data, error } = await supabase.auth.signUp({
       email: email.trim(), password: pwd,
-      options: { data: { full_name: name.trim(), phone: `+261${prefix.slice(1)}${digits}`, phone_local: `${prefix} ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}` } },
+      options: { data: { full_name: name.trim(), phone: `+261${prefix.slice(1)}${digits}`, phone_local: `${prefix} ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5)}`, privacy_accepted_at: new Date().toISOString(), privacy_version: PRIVACY_VERSION } },
     })
     setBusy(false)
     if (data.user && data.session) markAuth(data.user.id)
@@ -120,6 +124,12 @@ export function AuthScreen() {
             {pwd2 && pwd !== pwd2 && <p className="mt-1.5 text-xs text-red-500">Les mots de passe ne correspondent pas.</p>}
           </div>
         )}
+        {mode === 'signup' && (
+          <label className="flex items-start gap-3 rounded-2xl border border-cream-line bg-cream-tile px-4 py-3 text-sm">
+            <input type="checkbox" className="mt-0.5 h-5 w-5 shrink-0 accent-ink" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+            <span>J'ai lu et j'accepte la <button type="button" onClick={() => setShowPolicy(true)} className="font-semibold text-[#4A56E2] underline">politique de confidentialité</button> de Budget.Go.Family.</span>
+          </label>
+        )}
         {msg && <p className={`rounded-2xl px-4 py-3 text-sm ${msg.t === 'err' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{msg.s}</p>}
         {unconfirmed && <button type="button" disabled={busy} onClick={resend} className="btn-ghost w-full text-sm">Renvoyer l'email de confirmation</button>}
         <button disabled={busy || !ready} className="btn-primary mt-2 w-full text-lg">{busy ? '…' : mode === 'login' ? 'Connexion' : "S'inscrire"}</button>
@@ -129,6 +139,10 @@ export function AuthScreen() {
         {mode === 'login' ? 'Pas encore de compte ? Inscris-toi' : "J'ai déjà un compte · Connexion"}
       </button>
       <ByNord className="mb-6 mt-auto" />
+      <Sheet open={showPolicy} onClose={() => setShowPolicy(false)} title="Politique de confidentialité">
+        <PrivacyText />
+        <button onClick={() => { setAgree(true); setShowPolicy(false) }} className="btn-primary mt-6 w-full">J'accepte</button>
+      </Sheet>
     </div>
   )
 }

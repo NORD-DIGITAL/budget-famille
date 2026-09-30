@@ -1,31 +1,41 @@
 import { useMemo, useState } from 'react'
-import { ShoppingCart, BellRing, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
+import { Mail, ShoppingCart, BellRing, SlidersHorizontal, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useData } from '../lib/data'
-import { dayLabel, fmt, signed } from '../lib/format'
+import { dayLabel, daysInMonth, fmt, signed } from '../lib/format'
 import { useHidden, userInfo } from '../lib/prefs'
 import type { Kind, Tx } from '../lib/types'
 import { ByNord, Empty, IconTile } from '../components/ui'
 import { CarnetSwitcher } from '../components/Carnets'
 import { dueReminders } from '../lib/reminders'
+import { useBadge } from '../lib/inbox'
 import { AccueilAside } from './AccueilAside'
 import { MonthBar, fmtMonthLong } from '../components/DatePicker'
 import type { SubPage } from './Plus'
 
 export const LOW = 20000
 
+type Filters = { kind: 'tout' | Kind; day: string | null; cat: string | null; acc: string | null; mem: string | null }
+const NO_FILTER: Filters = { kind: 'tout', day: null, cat: null, acc: null, mem: null }
+
 export type Shortcut = { label: string; Icon: LucideIcon; run: () => void }
 
-export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, goAccount, onRefresh }: {
-  onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount: () => void
+export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, onRefresh }: {
+  onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount?: () => void
 }) {
-  const { txs, month, catById, accById, memById, cur, session, profile, catPath, goals, moves } = useData()
+  const { txs, month, catById, accById, memById, cur, session, profile, catPath, goals, moves, rootOf, categories, accounts, members } = useData()
   const due = dueReminders(goals, moves)
   const [hidden, toggleHidden] = useHidden()
   const [q, setQ] = useState('')
   const [searching, setSearching] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const me = userInfo(session, profile)
+  const inboxN = useBadge()
+  const [showF, setShowF] = useState(false)
+  const [f, setF] = useState<Filters>(NO_FILTER)
+  const [lastMonth, setLastMonth] = useState(month)
+  if (lastMonth !== month) { setLastMonth(month); setF((x) => ({ ...x, day: null })) }
+  const nF = (f.kind !== 'tout' ? 1 : 0) + (f.day ? 1 : 0) + (f.cat ? 1 : 0) + (f.acc ? 1 : 0) + (f.mem ? 1 : 0)
 
   const monthTx = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(month)), [txs, month])
   const inc = monthTx.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
@@ -33,12 +43,13 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
-    if (!s) return monthTx
+    if (!s) return monthTx.filter((t) => (f.kind === 'tout' || t.kind === f.kind) && (!f.day || t.occurred_on === f.day)
+      && (!f.cat || rootOf(t.category_id)?.id === f.cat) && (!f.acc || t.account_id === f.acc) && (!f.mem || t.member_id === f.mem))
     return txs.filter((t) => {
       const c = catPath(t.category_id) + ' ' + (t.child_name ?? '')
       return (t.note ?? '').toLowerCase().includes(s) || c.toLowerCase().includes(s)
     })
-  }, [txs, monthTx, q, catPath])
+  }, [txs, monthTx, q, catPath, f, rootOf])
 
   const groups = useMemo(() => {
     const m = new Map<string, Tx[]>()
@@ -47,6 +58,10 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
   }, [list])
 
   const mask = (n: string) => (hidden ? '••••••' : n)
+  const fInc = list.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
+  const fExp = list.filter((t) => t.kind === 'depense').reduce((a, t) => a + t.amount, 0)
+  const opDays = useMemo(() => new Set(monthTx.map((t) => t.occurred_on)), [monthTx])
+  const roots = categories.filter((c) => !c.parent_id && !c.archived && (f.kind === 'tout' || c.kind === f.kind))
 
   const shortcuts: Shortcut[] = [
     { label: 'Dépense', Icon: ArrowUpRight, run: () => onAdd('depense') },
@@ -65,12 +80,18 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
       {/* En-tête : salutation */}
       <header className="pt-safe px-5">
         <div className="flex items-center gap-3 py-4">
-          <button onClick={goAccount} aria-label="Mon compte" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">{me.initials}</button>
-          <div className="min-w-0 flex-1 leading-tight">
-            <p className="hero-muted text-sm">Bonjour</p>
-            <p className="truncate text-[1.0625rem] font-medium">{me.name}</p>
-            {me.phone && <p className="hero-muted tabular text-sm">{me.phone}</p>}
-          </div>
+          <button onClick={() => openSub('profil')} aria-label="Mon profil" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">{me.initials}</span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="hero-muted block text-sm">Bonjour</span>
+              <span className="block truncate text-[1.0625rem] font-medium">{me.name}</span>
+              {me.phone && <span className="hero-muted tabular block text-sm">{me.phone}</span>}
+            </span>
+          </button>
+          <button aria-label={`Boîte de réception${inboxN ? ` : ${inboxN} non lu${inboxN > 1 ? 's' : ''}` : ''}`} onClick={() => openSub('inbox')} className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
+            <Mail size={22} strokeWidth={1.8} />
+            {inboxN > 0 && <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6875rem] font-bold text-white">{inboxN > 99 ? '99+' : inboxN}</span>}
+          </button>
           <button aria-label="Actualiser" onClick={async () => { setRefreshing(true); await onRefresh(); setRefreshing(false) }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
             <RefreshCw size={22} strokeWidth={1.8} className={refreshing ? 'animate-spin' : ''} />
           </button>
@@ -134,8 +155,58 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
       {/* Opérations */}
       <section className="relative -mt-6 min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:mt-0 lg:px-8 lg:pt-4">
-        <h2 className="section-title mb-3">{q ? 'Résultats' : 'Opérations du mois'}</h2>
-        {groups.length === 0 && <Empty icon="📒" text={q ? 'Aucun résultat.' : 'Aucune opération ce mois-ci. Touche le bouton jaune pour en ajouter une.'} />}
+        <div className="mb-3 flex items-center gap-2">
+          <h2 className="section-title flex-1">{q ? 'Résultats' : 'Opérations du mois'}</h2>
+          {!q && (
+            <button onClick={() => setShowF(!showF)} className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm ${showF || nF ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>
+              <SlidersHorizontal size={16} /> Filtres{nF ? ` (${nF})` : ''}
+            </button>
+          )}
+        </div>
+        {!q && showF && (
+          <div className="mb-4 space-y-3 rounded-2xl border border-cream-line bg-cream-tile p-3">
+            <div className="flex gap-1 rounded-full bg-white p-1">
+              {([['tout', 'Tout'], ['depense', 'Dépenses'], ['revenu', 'Revenus']] as const).map(([k, l]) => (
+                <button key={k} onClick={() => setF({ ...f, kind: k, cat: null })} className={`flex-1 rounded-full py-1.5 text-sm ${f.kind === k ? 'bg-ink text-white' : 'text-ink-muted'}`}>{l}</button>
+              ))}
+            </div>
+            <div>
+              <p className="mb-1 text-xs text-ink-muted">Jour</p>
+              <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1">
+                <button onClick={() => setF({ ...f, day: null })} className={`shrink-0 rounded-xl px-3 py-2 text-sm ${!f.day ? 'bg-ink text-white' : 'bg-white'}`}>Tous</button>
+                {Array.from({ length: daysInMonth(month) }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`).map((d) => (
+                  <button key={d} onClick={() => setF({ ...f, day: f.day === d ? null : d })} aria-label={dayLabel(d)}
+                    className={`relative w-10 shrink-0 rounded-xl py-2 text-sm tabular ${f.day === d ? 'bg-ink text-white' : opDays.has(d) ? 'bg-white font-semibold' : 'bg-white/50 text-ink-muted'}`}>
+                    {Number(d.slice(8))}{opDays.has(d) && <span className={`absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full ${f.day === d ? 'bg-white' : 'bg-sun-500'}`} />}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <select aria-label="Catégorie" className="input py-2.5 text-sm" value={f.cat ?? ''} onChange={(e) => setF({ ...f, cat: e.target.value || null })}>
+                <option value="">Toutes les catégories</option>{roots.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select aria-label="Compte" className="input py-2.5 text-sm" value={f.acc ?? ''} onChange={(e) => setF({ ...f, acc: e.target.value || null })}>
+                <option value="">Tous les comptes</option>{accounts.filter((a) => !a.archived).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              </select>
+              <select aria-label="Membre" className="input py-2.5 text-sm" value={f.mem ?? ''} onChange={(e) => setF({ ...f, mem: e.target.value || null })}>
+                <option value="">Tous les membres</option>{members.filter((m) => !m.archived).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+              </select>
+            </div>
+            {nF > 0 && <button onClick={() => setF(NO_FILTER)} className="w-full py-1 text-sm text-ink-muted">Effacer les filtres</button>}
+          </div>
+        )}
+        {!q && nF > 0 && (
+          <div className="mb-4 rounded-2xl bg-ink p-4 text-white">
+            <p className="text-sm text-white/70">{f.day ? `Résumé · ${dayLabel(f.day)}` : 'Résumé de la sélection'} · {list.length} opération{list.length > 1 ? 's' : ''}</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <div><p className="text-xs text-white/60">Revenus</p><p className="tabular font-semibold text-emerald-300">{mask(fmt(fInc, cur))}</p></div>
+              <div><p className="text-xs text-white/60">Dépenses</p><p className="tabular font-semibold text-red-300">{mask(fmt(fExp, cur))}</p></div>
+              <div><p className="text-xs text-white/60">Solde</p><p className="tabular font-semibold">{mask(signed(fInc - fExp, cur))}</p></div>
+            </div>
+          </div>
+        )}
+        {groups.length === 0 && <Empty icon="📒" text={q ? 'Aucun résultat.' : nF ? 'Aucune opération pour ces filtres.' : 'Aucune opération ce mois-ci. Touche le bouton jaune pour en ajouter une.'} />}
         <div className="space-y-5">
           {groups.map(([day, items]) => {
             const net = items.reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)

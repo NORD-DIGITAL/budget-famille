@@ -28,6 +28,6 @@ export interface Profile {
   region: string | null; city: string | null; profession: string | null
   marital_status: 'celibataire' | 'conjoint' | 'partenaire' | 'marie' | null; children: Child[]; onboarded: boolean
 }
-export interface ShoppingList { id: string; name: string; status: 'brouillon' | 'prete' | 'terminee' | 'annulee'; account_id: string | null; member_id: string | null; created_at: string; validated_at: string | null; finished_at: string | null }
+export interface ShoppingList { id: string; name: string; status: 'brouillon' | 'prete' | 'terminee' | 'annulee'; account_id: string | null; member_id: string | null; created_at: string; validated_at: string | null; finished_at: string | null; planned_on: string | null }
 export interface ShoppingItem { id: string; list_id: string; category_id: string | null; label: string | null; quantity: number | null; unit: string | null; est_price: number | null; final_price: number | null; taken: boolean; cancelled: boolean; position: number }
 export interface Feedback { id: string; user_id: string; sender_name: string | null; sender_email: string | null; kind: 'amelioration' | 'probleme' | 'autre'; message: string; status: 'nouveau' | 'lu' | 'traite'; created_at: string }

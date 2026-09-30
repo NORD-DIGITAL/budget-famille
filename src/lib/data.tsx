@@ -101,7 +101,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { setProfileReady(false); reloadProfile() }, [reloadProfile])
   const reloadAccess = useCallback(async () => {
     if (!uid) { setIsAdmin(false); setExpiresAt(null); setAccessReady(true); return }
-    const { data } = await supabase.rpc('my_access')
+    const { data } = await supabase.rpc('my_access_v3')
     const row = (Array.isArray(data) ? data[0] : data) as { is_admin: boolean; expires_at: string | null } | undefined
     setIsAdmin(!!row?.is_admin); setExpiresAt(row?.expires_at ?? null); setAccessReady(true)
   }, [uid])
@@ -136,7 +136,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       supabase.from('carnet_users').select('user_id').eq('carnet_id', c),
       all<SavingsMove>('savings_moves', 'id,goal_id,amount,method,ref,note,moved_on', 'moved_on', false),
       all<DebtPayment>('debt_payments', 'id,debt_id,amount,method,ref,note,paid_on', 'paid_on', false),
-      all<ShoppingList>('shopping_lists', 'id,name,status,account_id,member_id,created_at,validated_at,finished_at', 'created_at', false),
+      all<ShoppingList>('shopping_lists', 'id,name,status,account_id,member_id,created_at,validated_at,finished_at,planned_on', 'created_at', false),
       all<ShoppingItem>('shopping_items', 'id,list_id,category_id,label,quantity,unit,est_price,final_price,taken,cancelled,position', 'position'),
     ])
     setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d); setMoves(mv); setPayments(pay); setLists(sl); setItems(si)

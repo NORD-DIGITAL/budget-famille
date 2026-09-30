@@ -13,6 +13,7 @@ const STATUS: Record<ShoppingList['status'], [string, string]> = {
   terminee: ['Achat effectué', 'bg-emerald-100 text-emerald-800'], annulee: ['Annulée', 'bg-neutral-100 text-ink-muted'],
 }
 const chip = (on: boolean) => `shrink-0 rounded-full border px-4 py-2 text-sm transition ${on ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`
+const listName = (d: string) => `Courses du ${new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
 const fmtNum = (v: string) => { const n = parseAmount(v); return n ? n.toLocaleString('fr-FR') : '' }
 
 export function CoursesPage() {
@@ -24,10 +25,11 @@ export function CoursesPage() {
   const current = lists.find((l) => l.id === openId)
   const totalOf = (id: string, k: 'est_price' | 'final_price') => items.filter((i) => i.list_id === id && !i.cancelled).reduce((a, i) => a + (i[k] ?? 0), 0)
 
+  const [newDate, setNewDate] = useState<string | null>(null)
   const create = async () => {
-    const name = `Courses du ${new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
-    const { data } = await supabase.from('shopping_lists').insert({ carnet_id: carnet!.id, name }).select('id').single()
-    await reload(); if (data) setOpenId(data.id)
+    const d = newDate ?? todayISO()
+    const { data } = await supabase.from('shopping_lists').insert({ carnet_id: carnet!.id, name: listName(d), planned_on: d }).select('id').single()
+    setNewDate(null); await reload(); if (data) setOpenId(data.id)
   }
 
   if (current) return <ListView list={current} onBack={() => setOpenId(null)} />
@@ -40,7 +42,7 @@ export function CoursesPage() {
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white"><ShoppingCart size={24} /></div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{l.name}</p>
-          <p className="text-xs text-ink-muted">{n} article{n > 1 ? 's' : ''} · <span className={`rounded-full px-2 py-0.5 ${cls}`}>{label}</span></p>
+          <p className="text-xs text-ink-muted">{l.planned_on ? `${new Date(l.planned_on + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })} · ` : ''}{n} article{n > 1 ? 's' : ''} · <span className={`rounded-full px-2 py-0.5 ${cls}`}>{label}</span></p>
         </div>
         <p className="tabular text-right font-semibold">{fmt(l.status === 'terminee' ? totalOf(l.id, 'final_price') : totalOf(l.id, 'est_price'), cur)}</p>
       </button>
@@ -50,7 +52,16 @@ export function CoursesPage() {
   return (
     <div className="space-y-4 px-5 pb-8 pt-2">
       <p className="text-sm text-ink-muted">Prépare ta liste avec des prix provisoires, valide-la, puis finalise l'achat une fois au marché : chaque article devient une dépense.</p>
-      <button onClick={create} className="btn-primary w-full"><Plus size={18} /> Nouvelle liste de courses</button>
+      <button onClick={() => setNewDate(todayISO())} className="btn-primary w-full"><Plus size={18} /> Nouvelle liste de courses</button>
+      <Sheet open={!!newDate} onClose={() => setNewDate(null)} title="Nouvelle liste de courses">
+        {newDate && (
+          <div className="space-y-4">
+            <div><p className="label">Date des courses</p><DateField value={newDate} onChange={setNewDate} /></div>
+            <p className="text-sm text-ink-muted">Cette date sera proposée comme date des dépenses au moment de finaliser (tu pourras la changer).</p>
+            <button onClick={create} className="btn-primary w-full">Créer la liste</button>
+          </div>
+        )}
+      </Sheet>
       {active.length === 0 && <Empty icon="🛒" text="Aucune liste en cours." />}
       <div className="grid gap-3 lg:grid-cols-2">{active.map((l) => <Card key={l.id} l={l} />)}</div>
       {old.length > 0 && (
@@ -77,6 +88,7 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState('')
   const draft = list.status === 'brouillon', ready = list.status === 'prete', closed = !draft && !ready
 
   const cats = useMemo(() => categories.filter((c) => c.kind === 'depense' && !c.archived)
@@ -118,6 +130,8 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
     }
     setBusy(false)
     if (error) return setErr(error.message)
+    const roots = [...new Set(lines.map(({ i }) => catPath(i.category_id).split(' › ')[0]).filter(Boolean))]
+    setDone(`${lines.length} dépense${lines.length > 1 ? 's' : ''} ajoutée${lines.length > 1 ? 's' : ''} le ${new Date(fin.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })} : ${roots.join(', ')}.`)
     setFin(null)
   }
 
@@ -131,6 +145,11 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
       <div className="rounded-3xl bg-sun-500 p-5">
         <p className="text-lg font-semibold">{list.name}</p>
         <span className={`mt-1 inline-block rounded-full px-3 py-0.5 text-xs ${cls}`}>{label}</span>
+        {!closed && (
+          <div className="mt-3"><p className="mb-1 text-xs">Date des courses</p>
+            <DateField className="bg-white/80 py-2.5" value={list.planned_on ?? list.created_at.slice(0, 10)}
+              onChange={(d) => setStatus(list.status, { planned_on: d, ...(/^Courses du /.test(list.name) ? { name: listName(d) } : {}) })} /></div>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-white/70 p-3"><p className="text-xs">Total prévu</p><p className="tabular text-lg font-semibold">{fmt(est, cur)}</p></div>
           <div className="rounded-2xl bg-white/70 p-3"><p className="text-xs">{closed ? 'Total payé' : 'Dans le panier'}</p><p className="tabular text-lg font-semibold">{fmt(closed ? live.reduce((a, i) => a + (i.final_price ?? 0), 0) : real, cur)}</p></div>
@@ -138,6 +157,7 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
         {ready && <p className="mt-2 text-xs">{taken.length} / {live.length} articles pris</p>}
       </div>
 
+      {done && <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">✔ {done} Retrouve-les dans Opérations du mois et dans Graphiques.</p>}
       {items.length === 0 && <Empty icon="📝" text="Ajoute les articles à acheter (Vary, Hena, Menaka…) avec un prix provisoire." />}
       <div>
         {items.map((i) => {
@@ -170,7 +190,7 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
       {draft && <button disabled={!live.length} onClick={() => setStatus('prete', { validated_at: new Date().toISOString() })} className="btn-primary w-full"><ClipboardCheck size={18} /> Valider : liste prête</button>}
       {ready && (
         <div className="space-y-2">
-          <button disabled={!taken.length} onClick={() => { setErr(''); setFin({ prices: Object.fromEntries(taken.map((i) => [i.id, (i.final_price ?? i.est_price ?? 0) ? (i.final_price ?? i.est_price)!.toLocaleString('fr-FR') : ''])), checked: false, acc: accounts.find((a) => !a.archived)?.id ?? null, mem: members.find((m) => !m.archived)?.id ?? null, date: todayISO(), ref: '' }) }}
+          <button disabled={!taken.length} onClick={() => { setErr(''); setFin({ prices: Object.fromEntries(taken.map((i) => [i.id, (i.final_price ?? i.est_price ?? 0) ? (i.final_price ?? i.est_price)!.toLocaleString('fr-FR') : ''])), checked: false, acc: accounts.find((a) => !a.archived)?.id ?? null, mem: members.find((m) => !m.archived)?.id ?? null, date: list.planned_on ?? todayISO(), ref: '' }) }}
             className="btn-primary w-full"><Check size={18} /> Finaliser : achat effectué</button>
           <button onClick={() => setStatus('brouillon')} className="w-full py-2 text-sm text-ink-muted">Revenir à la préparation</button>
         </div>
@@ -226,7 +246,8 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
       <Sheet open={!!fin} onClose={() => setFin(null)} title="Vérifier et finaliser">
         {fin && (
           <div className="space-y-4">
-            <p className="rounded-2xl bg-sun-100 px-4 py-3 text-sm">Vérifie le <b>prix réel</b> de chaque article avant de finaliser. Chaque article deviendra une dépense dans le carnet.</p>
+            <p className="rounded-2xl bg-sun-100 px-4 py-3 text-sm">Vérifie le <b>prix réel</b> de chaque article. Chaque article devient directement une <b>dépense</b> dans sa catégorie, à la date choisie.</p>
+            <div><p className="label">Date de l'achat (date des dépenses)</p><DateField value={fin.date} onChange={(v) => setFin({ ...fin, date: v })} /></div>
             <div>
               {taken.map((i) => {
                 const c = i.category_id ? catById.get(i.category_id) : undefined
@@ -244,7 +265,6 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
             <div><p className="label">Payé avec</p><div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1">{accounts.filter((a) => !a.archived).map((a) => <button key={a.id} onClick={() => setFin({ ...fin, acc: a.id })} className={chip(fin.acc === a.id)}>{a.name}</button>)}</div></div>
             {/mvola|orange/i.test(accounts.find((a) => a.id === fin.acc)?.name ?? '') && <RefField value={fin.ref} onChange={(v) => setFin({ ...fin, ref: v })} />}
             <div><p className="label">Payé par</p><div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1">{members.filter((m) => !m.archived).map((m) => <button key={m.id} onClick={() => setFin({ ...fin, mem: m.id })} className={chip(fin.mem === m.id)}>{m.name}</button>)}</div></div>
-            <div><p className="label">Date</p><DateField value={fin.date} onChange={(v) => setFin({ ...fin, date: v })} /></div>
             <label className="flex items-center gap-3 rounded-2xl border border-cream-line bg-cream-tile px-4 py-3 text-sm">
               <input type="checkbox" className="h-5 w-5 accent-ink" checked={fin.checked} onChange={(e) => setFin({ ...fin, checked: e.target.checked })} /> J'ai vérifié les prix
             </label>

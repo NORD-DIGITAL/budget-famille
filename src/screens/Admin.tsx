@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Ban, Check, Copy, KeyRound, Search, Share2, Users } from 'lucide-react'
+import { ArrowLeft, Mail, Ban, Check, Copy, KeyRound, Search, Share2, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { Empty } from '../components/ui'
 import { daysLeft, fmtDay, planLabel, PLANS } from './GoCode'
+import { ComposeMessage } from './Feedback'
 
 type AdminUser = { id: string; email: string; full_name: string | null; phone: string | null; created_at: string; last_sign_in_at: string | null; expires_at: string | null; codes_pending: number }
 type GoCodeRow = { id: string; code: string; days: number; created_at: string; used_at: string | null; revoked: boolean }
@@ -153,6 +154,10 @@ function UserDetail({ user, onBack }: { user: AdminUser; onBack: () => void }) {
               )}
           </div>
         ))}
+      </section>
+      <section className="rounded-3xl border border-cream-line bg-cream-tile p-4">
+        <h2 className="mb-3 flex items-center gap-2 font-semibold"><Mail size={18} /> Envoyer un message</h2>
+        <ComposeMessage to={{ id: user.id, name: user.full_name || user.email }} />
       </section>
       <p className="flex items-center gap-2 text-xs text-ink-muted"><Users size={14} /> Le client voit son compteur de jours dans Compte.</p>
     </div>
