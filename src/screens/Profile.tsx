@@ -76,7 +76,7 @@ function ProfileFields({ f, setF }: { f: Form; setF: (f: Form) => void }) {
 
   return (
     <div className="space-y-5">
-      <div><label className="label" htmlFor="p-name">Nom complet</label><input id="p-name" className="input" autoComplete="name" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></div>
+      <div><label className="label" htmlFor="p-name">Nom complet <span className="text-red-500">*</span> <span className="text-xs">(obligatoire)</span></label><input id="p-name" className="input" autoComplete="name" value={f.full_name} onChange={(e) => setF({ ...f, full_name: e.target.value })} /></div>
       <div>
         <label className="label" htmlFor="p-phone">Téléphone</label>
         <div className="flex gap-2">
@@ -142,12 +142,14 @@ export function ProfileSetup() {
   const uid = session!.user.id
 
   const save = async () => {
+    if (!f.full_name.trim()) return setErr('Ton nom complet est obligatoire.')
     setBusy(true); setErr('')
     const e = await saveProfile(uid, f)
     setBusy(false)
     if (e) setErr(e); else await reloadProfile()
   }
   const later = async () => {
+    if (!f.full_name.trim()) return setErr('Ton nom complet est obligatoire, même si tu remplis le reste plus tard.')
     setBusy(true)
     await supabase.from('profiles').upsert({ id: uid, full_name: f.full_name.trim() || null, onboarded: true })
     setBusy(false); await reloadProfile()
@@ -178,6 +180,7 @@ export function ProfilePage() {
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; s: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const save = async () => {
+    if (!f.full_name.trim()) return setMsg({ t: 'err', s: 'Ton nom complet est obligatoire.' })
     setBusy(true)
     const e = await saveProfile(session!.user.id, f)
     setBusy(false)

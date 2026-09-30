@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
+import { UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { DataProvider, useData } from './lib/data'
 import { userInfo } from './lib/prefs'
@@ -21,6 +21,8 @@ import { DebtsPage, GoalsPage } from './screens/Savings'
 import { syncReminders } from './lib/reminders'
 import { CoursesPage } from './screens/Courses'
 import { FeedbackPage, InboxPage, useInboxCount } from './screens/Feedback'
+import { GoCodeScreen, hasAccess } from './screens/GoCode'
+import { UsersPage } from './screens/Admin'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
@@ -91,7 +93,9 @@ function usePullToRefresh(onRefresh: () => Promise<void>, enabled: boolean) {
 }
 
 function Shell() {
-  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile, principalId, goals, isAdmin } = useData()
+  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile, principalId, goals, isAdmin, expiresAt, accessReady } = useData()
+  const [, setTick] = useState(0)
+  useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 60_000); return () => clearInterval(t) }, [])
   const inboxN = useInboxCount()
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
@@ -155,12 +159,13 @@ function Shell() {
   const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   const { pull, spinning } = usePullToRefresh(refreshAll, !!session && !locked && isTouch)
 
-  if (!authReady || (session && (!carnetReady || !profileReady))) {
+  if (!authReady || (session && (!carnetReady || !profileReady || !accessReady))) {
     return <div className="flex h-full items-center justify-center bg-white"><div className="h-10 w-10 animate-spin rounded-full border-4 border-sun-100 border-t-sun-500" /></div>
   }
   if (!session) return <AuthScreen />
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
-  if (!profile?.onboarded) return <ProfileSetup />
+  if (!profile?.onboarded || !profile.full_name?.trim()) return <ProfileSetup />
+  if (!hasAccess(isAdmin, expiresAt)) return <GoCodeScreen />
   if (!carnet) return <OnboardingScreen />
 
   const openForm = (t: Tx | null, k: Kind = 'depense') => { setEditing(t); setFormKind(k); setFormOpen(true) }
@@ -214,6 +219,7 @@ function Shell() {
         </nav>
         <div className="mt-auto space-y-2">
           <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
+          {isAdmin && <SideLink active={sub === 'users'} onClick={() => openSub('users')} Icon={UsersRound} label="Utilisateurs" />}
           {isAdmin && <SideLink active={sub === 'inbox'} onClick={() => openSub('inbox')} Icon={Inbox} label={`Boîte de réception${inboxN ? ` (${inboxN})` : ''}`} />}
           <SideLink onClick={refreshAll} Icon={RefreshCw} label="Actualiser" />
           <CarnetSwitcher variant="dark" />
@@ -241,6 +247,7 @@ function Shell() {
             {sub === 'courses' && <CoursesPage />}
             {sub === 'remarques' && <FeedbackPage />}
             {sub === 'inbox' && <InboxPage />}
+            {sub === 'users' && <UsersPage />}
           </div>
         ) : (
           <>

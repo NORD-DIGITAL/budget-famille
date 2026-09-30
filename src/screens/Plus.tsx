@@ -8,14 +8,15 @@ import { userInfo } from '../lib/prefs'
 import type { Kind } from '../lib/types'
 import { ByNord, Header, Row, Sheet } from '../components/ui'
 import { useInboxCount } from './Feedback'
+import { SubscriptionCard } from './GoCode'
 import { CarnetSwitcher } from '../components/Carnets'
 import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeForCarnet } from '../lib/theme'
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
-export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs',
 }
 
 function useExportCsv() {
@@ -56,6 +57,7 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
           <button onClick={() => open('profil')} className="pill mt-2 bg-sun-300">Voir le profil</button>
         </div>
       </div>
+      <SubscriptionCard onAdmin={() => open('users')} />
       <ThemeRow />
       <SizeRow />
 
@@ -69,6 +71,7 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <Row icon={ico(Share2)} label="Famille & partage" sub="Inviter un proche avec le code" onClick={() => open('partage')} />
         <BiometricRow />
         <Row icon={ico(Lightbulb)} label="Remarque / suggestion" sub="Proposer une amélioration" onClick={() => open('remarques')} />
+        {isAdmin && <Row icon={ico(Users)} label="Utilisateurs" sub="Comptes, jours restants, Go Codes (admin)" onClick={() => open('users')} />}
         {isAdmin && <Row icon={ico(Inbox)} label="Boîte de réception" sub="Remarques des utilisateurs (admin)" onClick={() => open('inbox')}
           right={<span className="flex items-center gap-2">{inboxN > 0 && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">{inboxN}</span>}<ChevronRight size={22} className="text-neutral-400" /></span>} />}
         <Row icon={ico(FileDown)} label="Exporter vers Excel (CSV)" sub={csv.status || undefined} onClick={csv.run} right={<span />} />

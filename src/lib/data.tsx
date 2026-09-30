@@ -31,6 +31,9 @@ interface DataCtx {
   lists: ShoppingList[]
   items: ShoppingItem[]
   isAdmin: boolean
+  expiresAt: string | null
+  accessReady: boolean
+  reloadAccess: () => Promise<void>
   payments: DebtPayment[]
   principalId: string | null
   month: string
@@ -69,6 +72,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [lists, setLists] = useState<ShoppingList[]>([])
   const [items, setItems] = useState<ShoppingItem[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [accessReady, setAccessReady] = useState(false)
   const [payments, setPayments] = useState<DebtPayment[]>([])
   const [month, setMonth] = useState(monthKey(new Date()))
 
@@ -94,7 +99,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setProfileReady(true)
   }, [uid])
   useEffect(() => { setProfileReady(false); reloadProfile() }, [reloadProfile])
-  useEffect(() => { if (uid) supabase.rpc('is_app_admin').then(({ data }) => setIsAdmin(!!data)); else setIsAdmin(false) }, [uid])
+  const reloadAccess = useCallback(async () => {
+    if (!uid) { setIsAdmin(false); setExpiresAt(null); setAccessReady(true); return }
+    const { data } = await supabase.rpc('my_access')
+    const row = (Array.isArray(data) ? data[0] : data) as { is_admin: boolean; expires_at: string | null } | undefined
+    setIsAdmin(!!row?.is_admin); setExpiresAt(row?.expires_at ?? null); setAccessReady(true)
+  }, [uid])
+  useEffect(() => { setAccessReady(false); reloadAccess() }, [reloadAccess])
 
   const carnet = useMemo(() => carnets.find((c) => c.id === selId) ?? carnets[0] ?? null, [carnets, selId])
   const principalId = (carnets.find((c) => c.role === 'proprietaire') ?? carnets[0])?.id ?? null
@@ -170,11 +181,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     return {
       session, authReady, carnets, carnet, carnetReady, switchCarnet, profile, profileReady, reloadProfile, familyChildren,
-      members, accounts, categories, txs, budgets, goals, debts, moves, payments, principalId, lists, items, isAdmin, month, setMonth, reload, loadCarnet, cur: carnet?.currency ?? 'Ar',
+      members, accounts, categories, txs, budgets, goals, debts, moves, payments, principalId, lists, items, isAdmin, expiresAt, accessReady, reloadAccess, month, setMonth, reload, loadCarnet, cur: carnet?.currency ?? 'Ar',
       catById, accById: new Map(accounts.map((x) => [x.id, x])), memById: new Map(members.map((x) => [x.id, x])),
       childrenOf, rootOf, catPath,
     }
-  }, [session, authReady, carnets, carnet, carnetReady, profile, profileReady, reloadProfile, familyChildren, members, accounts, categories, txs, budgets, goals, debts, moves, payments, principalId, lists, items, isAdmin, month, reload, loadCarnet])
+  }, [session, authReady, carnets, carnet, carnetReady, profile, profileReady, reloadProfile, familyChildren, members, accounts, categories, txs, budgets, goals, debts, moves, payments, principalId, lists, items, isAdmin, expiresAt, accessReady, reloadAccess, month, reload, loadCarnet])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
