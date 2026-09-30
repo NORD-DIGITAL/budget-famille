@@ -9,10 +9,18 @@ export interface Category {
 export interface Tx {
   id: string; kind: Kind; amount: number; category_id: string | null; account_id: string | null
   member_id: string | null; note: string | null; occurred_on: string; created_at: string
-  quantity: number | null; unit: string | null; child_name: string | null; for_month: string | null
+  quantity: number | null; unit: string | null; child_name: string | null; for_month: string | null; ref: string | null; beneficiary: string | null
 }
 export interface Budget { id: string; category_id: string | null; monthly_amount: number }
-export interface Goal { id: string; name: string; icon: string; target_amount: number; saved_amount: number; deadline: string | null }
+export type GoalKind = 'objectif' | 'principal' | 'familiale' | 'materiel' | 'perso' | 'autre'
+export interface Goal {
+  id: string; name: string; icon: string; target_amount: number | null; saved_amount: number; deadline: string | null
+  kind: GoalKind; support: 'banque' | 'mvola' | 'orange' | null; bank: string | null; phone: string | null
+  monthly_day: number | null; monthly_amount: number | null
+}
+export interface SavingsMove { id: string; goal_id: string; amount: number; method: string | null; ref: string | null; note: string | null; moved_on: string }
+export interface DebtPayment { id: string; debt_id: string; amount: number; method: string | null; ref: string | null; note: string | null; paid_on: string }
+export interface Attachment { id: string; entity: 'goal' | 'debt'; entity_id: string; move_id: string | null; path: string; size: number; owner: string }
 export interface Debt { id: string; direction: 'je_dois' | 'on_me_doit'; person: string; amount: number; paid: number; due_date: string | null; note: string | null }
 export interface Child { name: string; age: number | null; school?: boolean }
 export interface Profile {

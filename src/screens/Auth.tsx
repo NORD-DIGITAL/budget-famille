@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import logo from '../assets/logo.png'
 import { markAuth } from '../lib/lock'
+import { ByNord, Wordmark } from '../components/ui'
 
 const PREFIXES = ['032', '033', '034', '036', '037', '038']
 
@@ -11,7 +12,7 @@ export function Brand() {
   return (
     <div className="flex flex-col items-center gap-3">
       <img src={logo} alt="" className="h-20 w-20 rounded-[22px]" />
-      <p className="text-[28px] font-bold tracking-tight">Budget<span className="text-sun-500">Famille</span></p>
+      <Wordmark className="text-[28px]" />
     </div>
   )
 }
@@ -127,6 +128,7 @@ export function AuthScreen() {
       <button type="button" onClick={switchMode} className="mb-8 mt-6 py-2 text-center text-[15px] text-[#4A56E2]">
         {mode === 'login' ? 'Pas encore de compte ? Inscris-toi' : "J'ai déjà un compte · Connexion"}
       </button>
+      <ByNord className="mb-6 mt-auto" />
     </div>
   )
 }
@@ -169,6 +171,7 @@ export function OnboardingScreen() {
       </div>
       {err && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
       <button onClick={() => supabase.auth.signOut()} className="mt-8 w-full text-sm text-ink-muted">Se déconnecter</button>
+      <ByNord className="mt-2" />
     </div>
   )
 }

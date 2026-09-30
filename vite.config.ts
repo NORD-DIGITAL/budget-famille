@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Budget Famille',
-        short_name: 'Budget',
+        name: 'Budget.Go.Family',
+        short_name: 'Budget.Go',
         description: 'Gestion de budget familial',
         lang: 'fr',
         start_url: './',

@@ -24,7 +24,7 @@ export async function biometricAvailable(): Promise<boolean> {
 export const biometricEnabled = (uid: string) => get(`bf-bio-${uid}`) === '1'
 
 async function verifyNative() {
-  await NativeBiometric.verifyIdentity({ title: 'Budget Famille', subtitle: 'Déverrouiller', description: 'Utilise ton empreinte ou ton visage', negativeButtonText: 'Annuler', maxAttempts: 5 })
+  await NativeBiometric.verifyIdentity({ title: 'Budget.Go.Family', subtitle: 'Déverrouiller', description: 'Utilise ton empreinte ou ton visage', negativeButtonText: 'Annuler', maxAttempts: 5 })
 }
 
 /** Active le déverrouillage : demande une première vérification. */
@@ -33,8 +33,8 @@ export async function enableBiometric(uid: string, email: string): Promise<strin
     if (isNative()) { await verifyNative() }
     else {
       const cred = (await navigator.credentials.create({ publicKey: {
-        challenge: rand(), rp: { name: 'Budget Famille' },
-        user: { id: rand(16), name: email || 'budget', displayName: email || 'Budget Famille' },
+        challenge: rand(), rp: { name: 'Budget.Go.Family' },
+        user: { id: rand(16), name: email || 'budget', displayName: email || 'Budget.Go.Family' },
         pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
         authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'discouraged' },
         timeout: 60000,

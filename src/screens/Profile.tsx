@@ -206,6 +206,7 @@ const RESET_LABELS: [ResetKey, string][] = [
 /** Réinitialisation du carnet, protégée par un avertissement et une saisie de confirmation. */
 function ResetSection() {
   const { carnet, reload, txs } = useData()
+  const owner = carnet?.role === 'proprietaire'
   const [open, setOpen] = useState(false)
   const [sel, setSel] = useState<Record<ResetKey, boolean>>({ transactions: true, budgets: true, savings_goals: true, debts: true, balances: false })
   const [word, setWord] = useState('')
@@ -216,11 +217,10 @@ function ResetSection() {
   const run = async () => {
     if (word.trim().toUpperCase() !== RESET_WORD || !carnet) return
     setBusy(true)
-    for (const k of ['transactions', 'budgets', 'savings_goals', 'debts'] as const) if (sel[k]) await supabase.from(k).delete().eq('carnet_id', carnet.id)
-    if (sel.balances) await supabase.from('accounts').update({ initial_balance: 0 }).eq('carnet_id', carnet.id)
+    const { error } = await supabase.rpc('reset_carnet', { c: carnet.id, p_tx: sel.transactions, p_budgets: sel.budgets, p_goals: sel.savings_goals, p_debts: sel.debts, p_balances: sel.balances })
     await reload()
     setBusy(false); setOpen(false); setWord('')
-    setDone('Données supprimées. Tes catégories, comptes et membres sont conservés.')
+    setDone(error ? error.message : 'Données supprimées. Tes catégories, comptes et membres sont conservés.')
   }
 
   return (
@@ -228,7 +228,11 @@ function ResetSection() {
       <h2 className="flex items-center gap-2 font-semibold text-red-600"><TriangleAlert size={18} /> Zone sensible</h2>
       <p className="text-sm text-ink-soft">Remettre le carnet « {carnet?.name} » à zéro, par exemple pour repartir sur une nouvelle année.</p>
       {done && <p className="rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">{done}</p>}
-      <button onClick={() => { setOpen(true); setDone('') }} className="btn w-full bg-red-50 text-red-600"><Trash2 size={18} /> Réinitialiser les données</button>
+      {owner ? (
+        <button onClick={() => { setOpen(true); setDone('') }} className="btn w-full bg-red-50 text-red-600"><Trash2 size={18} /> Réinitialiser les données</button>
+      ) : (
+        <p className="rounded-2xl bg-neutral-50 px-4 py-3 text-sm text-ink-muted">Ce carnet appartient à une autre personne : seul son créateur peut effacer ses données. Ouvre ton carnet principal pour réinitialiser le tien.</p>
+      )}
 
       <Sheet open={open} onClose={() => setOpen(false)} title="Réinitialiser les données">
         <div className="space-y-4">

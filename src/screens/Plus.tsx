@@ -5,13 +5,15 @@ import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { userInfo } from '../lib/prefs'
 import type { Kind } from '../lib/types'
-import { Header, Row, Sheet } from '../components/ui'
+import { ByNord, Header, Row, Sheet } from '../components/ui'
+import { CarnetSwitcher } from '../components/Carnets'
+import { THEMES, setUserTheme, useUserTheme, themeForCarnet } from '../lib/theme'
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
 export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Objectifs d'épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil',
 }
 
 function useExportCsv() {
@@ -59,11 +61,11 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
           <button onClick={() => open('profil')} className="pill mt-2 bg-sun-300">Voir le profil</button>
         </div>
       </div>
-      <p className="border-b border-neutral-100 px-5 py-3 text-sm text-ink-muted">Carnet ouvert : <b className="text-ink">{carnet?.name}</b></p>
+      <ThemeRow />
 
       <div>
         <Row icon={ico(Target)} label="Budget du mois" onClick={() => open('budget')} />
-        <Row icon={ico(PiggyBank)} label="Objectifs d'épargne" onClick={() => open('objectifs')} />
+        <Row icon={ico(PiggyBank)} label="Épargne" onClick={() => open('objectifs')} />
         <Row icon={ico(HandCoins)} label="Dettes" sub="Ce que je dois, ce qu'on me doit" onClick={() => open('dettes')} />
         <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
         <Row icon={ico(Landmark)} label="Comptes" onClick={() => open('comptes')} />
@@ -71,10 +73,12 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <Row icon={ico(Share2)} label="Famille & partage" sub="Inviter un proche avec le code" onClick={() => open('partage')} />
         <BiometricRow />
         <Row icon={ico(FileDown)} label="Exporter vers Excel (CSV)" sub={csv.status || undefined} onClick={csv.run} right={<span />} />
+        <div className="border-b border-neutral-100 px-5 py-3"><CarnetSwitcher /></div>
         <Row icon={<LogOut size={26} strokeWidth={1.6} />} label={confirmOut ? 'Toucher encore pour confirmer' : 'Se déconnecter'} danger
           onClick={() => (confirmOut ? supabase.auth.signOut() : setConfirmOut(true))} />
       </div>
-      <p className="py-8 text-center text-sm text-ink-muted">Budget Famille · version 1.1</p>
+      <ByNord className="pt-6" />
+      <p className="pb-8 pt-1 text-center text-xs text-ink-muted">Budget.Go.Family · version 2.0 · carnet « {carnet?.name} »</p>
     </>
   )
 }
@@ -92,7 +96,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
     ] },
     { title: 'Suivre', items: [
       { label: 'Budget du mois', Icon: Target, run: go(() => openSub('budget')) },
-      { label: "Objectifs d'épargne", Icon: PiggyBank, run: go(() => openSub('objectifs')) },
+      { label: "Épargne", Icon: PiggyBank, run: go(() => openSub('objectifs')) },
       { label: 'Dettes', Icon: HandCoins, run: go(() => openSub('dettes')) },
       { label: 'Graphiques', Icon: PieChart, run: go(goCharts) },
     ] },
@@ -149,5 +153,26 @@ function BiometricRow() {
       onClick={avail ? toggle : undefined}
       right={<span className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-sun-500' : 'bg-neutral-300'} ${avail === false ? 'opacity-40' : ''}`}>
         <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} /></span>} />
+  )
+}
+
+function ThemeRow() {
+  const { session, carnet, principalId } = useData()
+  const uid = session!.user.id
+  const t = useUserTheme(uid)
+  const other = carnet && carnet.id !== principalId
+  return (
+    <div className="border-b border-neutral-100 px-5 py-4">
+      <p className="mb-2 text-sm text-ink-muted">Thème de couleur</p>
+      <div className="flex gap-2">
+        {THEMES.map((x) => (
+          <button key={x.id} onClick={() => setUserTheme(uid, x.id)}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-full border py-2 text-sm transition ${t === x.id ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>
+            <span className="h-4 w-4 rounded-full" style={{ background: x.color }} />{x.label}
+          </button>
+        ))}
+      </div>
+      {other && <p className="mt-2 text-xs text-ink-muted">Tu es dans le carnet « {carnet!.name} » : il a sa propre couleur ({THEMES.find((x) => x.id === themeForCarnet(carnet!.id, principalId, t))!.label}) pour le distinguer de ton carnet principal.</p>}
+    </div>
   )
 }

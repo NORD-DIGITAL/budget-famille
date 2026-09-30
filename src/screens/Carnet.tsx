@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
-import { RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, Landmark, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
+import { BellRing, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, Landmark, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useData } from '../lib/data'
 import { dayLabel, fmt, signed } from '../lib/format'
 import { useHidden, userInfo } from '../lib/prefs'
 import type { Kind, Tx } from '../lib/types'
-import { Empty, IconTile } from '../components/ui'
+import { ByNord, Empty, IconTile } from '../components/ui'
+import { CarnetSwitcher } from '../components/Carnets'
+import { dueReminders } from '../lib/reminders'
+import { AccueilAside } from './AccueilAside'
 import { MonthBar, fmtMonthLong } from '../components/DatePicker'
 import type { SubPage } from './Plus'
 
@@ -16,7 +19,8 @@ export type Shortcut = { label: string; Icon: LucideIcon; run: () => void }
 export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, goAccount, onRefresh }: {
   onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount: () => void
 }) {
-  const { txs, month, catById, accById, memById, cur, session, profile, catPath } = useData()
+  const { txs, month, catById, accById, memById, cur, session, profile, catPath, goals, moves } = useData()
+  const due = dueReminders(goals, moves)
   const [hidden, toggleHidden] = useHidden()
   const [q, setQ] = useState('')
   const [searching, setSearching] = useState(false)
@@ -56,8 +60,8 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
   ]
 
   return (
-    <div className="bg-gradient-to-b from-[#FFF3C4] via-cream to-cream lg:grid lg:grid-cols-[400px_1fr] lg:items-start lg:gap-2 lg:bg-none lg:bg-white lg:p-4">
-      <div className="lg:sticky lg:top-4 lg:rounded-[28px] lg:bg-gradient-to-b lg:from-[#FFF3C4] lg:via-cream lg:to-cream lg:pb-2">
+    <div className="bg-gradient-to-b from-[var(--hero)] via-cream to-cream lg:grid lg:grid-cols-[400px_1fr] lg:items-start lg:gap-2 lg:bg-none lg:bg-white lg:p-4 xl:grid-cols-[440px_1fr] 2xl:grid-cols-[440px_1fr_380px] 2xl:gap-4">
+      <div className="lg:sticky lg:top-4 lg:rounded-[28px] lg:bg-gradient-to-b lg:from-[var(--hero)] lg:via-cream lg:to-cream lg:pb-2">
       {/* En-tête : salutation */}
       <header className="pt-safe px-5">
         <div className="flex items-center gap-3 py-4">
@@ -74,6 +78,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
             {searching ? <X size={24} strokeWidth={1.8} /> : <Search size={24} strokeWidth={1.8} />}
           </button>
         </div>
+        <div className="-mt-2 mb-2 flex justify-center"><CarnetSwitcher variant="chip" /></div>
         {searching && (
           <div className="mb-4 flex items-center gap-3 rounded-full border border-cream-line bg-white px-5 py-3">
             <Search size={20} strokeWidth={1.8} className="text-ink-muted" />
@@ -108,6 +113,12 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
           </section>
 
           {/* Raccourcis */}
+          {due.length > 0 && (
+            <button onClick={() => openSub('objectifs')} className="mx-5 mt-4 flex w-[calc(100%-2.5rem)] items-center gap-3 rounded-2xl border border-sun-300 bg-white px-4 py-3 text-left">
+              <BellRing size={22} className="shrink-0 text-sun-600" />
+              <span className="min-w-0 flex-1 text-sm"><b>Épargne du mois à faire</b><br /><span className="text-ink-muted">{due.map((g) => `${g.name} (le ${g.monthly_day}${g.monthly_amount ? `, ${fmt(g.monthly_amount, cur)}` : ''})`).join(' · ')}</span></span>
+            </button>
+          )}
           <section className="grid grid-cols-4 gap-y-5 px-3 pb-6 pt-6">
             {shortcuts.map(({ label, Icon, run }) => (
               <button key={label} onClick={run} className="flex flex-col items-center gap-2 text-center">
@@ -116,6 +127,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
               </button>
             ))}
           </section>
+          <ByNord className="pb-4" />
         </>
       )}
       </div>
@@ -145,7 +157,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
                           c?.parent_id ? catById.get(c.parent_id)?.name : null,
                           t.quantity ? `${String(t.quantity).replace('.', ',')} ${t.unit ?? ''}` : null,
                           t.for_month ? `mois : ${fmtMonthLong(t.for_month)}` : null,
-                          t.child_name, a?.name, m?.name, t.note,
+                          t.child_name, t.beneficiary, a?.name, t.ref ? `Réf. ${t.ref}` : null, m?.name, t.note,
                         ].filter(Boolean).join(' · ')}</p>
                       </div>
                       <span className={`tabular shrink-0 font-semibold ${t.kind === 'revenu' ? 'text-emerald-600' : ''}`}>
@@ -159,6 +171,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
           })}
         </div>
       </section>
+      <AccueilAside openSub={openSub} goCharts={goCharts} />
     </div>
   )
 }

@@ -3,15 +3,17 @@ import {
   ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home,
   Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X,
 } from 'lucide-react'
-import { Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
+import { Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
+  [/connectivit/i, Wifi], [/data mobile/i, Signal], [/wi-?fi/i, Wifi], [/cr[ée]dit t[ée]l/i, Smartphone], [/petit d[ée]j/i, Coffee],
+  [/^lait|yaourt/i, Milk], [/couche/i, Baby], [/m[ée]dicament/i, Pill], [/v[êe]tement|lingerie/i, Shirt],
   [/vihindr|haricot|tsaramaso/i, Bean], [/v[ôo]rogno|akoho|poulet|volaille/i, Drumstick], [/p[âa]te|soupe/i, Soup], [/^mofo|\bpain\b/i, Croissant],
   [/grand go[ûu]ter/i, CakeSlice], [/inscription/i, ClipboardPen], [/[ée]colage/i, School], [/activit[ée]|\bsport|karat/i, Dumbbell], [/fourniture/i, PencilRuler],
-  [/^vary|\briz\b/i, Wheat], [/l[ée]gume/i, Carrot], [/anana|br[èe]de/i, Leaf], [/^hena|viande/i, Beef], [/l[ôo]ka|poisson|trondro/i, Fish],
+  [/^vary|\briz\b/i, Wheat], [/l[ée]gume/i, Carrot], [/anana|br[èe]de/i, Leaf], [/^hena|viande/i, Beef], [/l[ôo]k[ao]|poisson|trondro/i, Fish],
   [/menaka|huile/i, Droplet], [/sakay|tongolo|voatabia|tomate|oignon/i, Salad], [/bazary|courses?\b/i, ShoppingCart], [/go[ûu]ter/i, Cookie],
   [/resto/i, UtensilsCrossed], [/^jus/i, CupSoda], [/revy|boisson|bi[èe]re/i, Wine], [/cin[ée]ma|netflix/i, Film], [/sortie/i, Ticket],
   [/informatique|ordinateur/i, Laptop], [/^ai$|^ia$|intelligence|chatgpt/i, Sparkles], [/jeux|jeu vid/i, Gamepad2], [/enfant/i, Baby],
@@ -117,7 +119,7 @@ export function Progress({ value, max, color }: { value: number; max: number; co
   const over = value > max
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-neutral-100">
-      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: over ? '#E5484D' : color ?? '#FFCC00' }} />
+      <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: over ? '#E5484D' : color ?? 'var(--accent)' }} />
     </div>
   )
 }
@@ -146,5 +148,19 @@ export function Row({ icon, label, sub, right, onClick, danger }: { icon?: React
       </div>
       {right ?? (onClick && !danger ? <ChevronRight size={22} className="text-neutral-400" /> : null)}
     </button>
+  )
+}
+
+/** Nom de l'application. */
+export function Wordmark({ className = '', dark }: { className?: string; dark?: boolean }) {
+  return <span className={`font-bold tracking-tight ${className}`}>Budget<span className="text-sun-500">.Go.</span><span className={dark ? 'text-white' : ''}>Family</span></span>
+}
+
+/** Signature obligatoire des projets NORD DIGITAL. */
+export function ByNord({ className = '', light }: { className?: string; light?: boolean }) {
+  return (
+    <p className={`text-center text-[11px] uppercase tracking-[0.18em] ${light ? 'text-neutral-500' : 'text-ink-muted'} ${className}`}>
+      by <span className={`font-semibold ${light ? 'text-neutral-300' : 'text-ink'}`}>NORD DIGITAL</span>
+    </p>
   )
 }

@@ -5,10 +5,10 @@ export default {
     extend: {
       colors: {
         // brand = encre (texte/actions) ; sun = jaune d'accent
-        brand: { 50: '#FFF8D6', 100: '#FFEFA3', 400: '#FFD83D', 500: '#FFCC00', 600: '#141414', 700: '#000000' },
-        sun: { 50: '#FFFBEA', 100: '#FFF3C2', 300: '#FFE066', 400: '#FFD60A', 500: '#FFCC00', 600: '#E6B800' },
+        brand: { 50: 'rgb(var(--sun-50) / <alpha-value>)', 100: 'rgb(var(--sun-100) / <alpha-value>)', 400: 'rgb(var(--sun-400) / <alpha-value>)', 500: 'rgb(var(--sun-500) / <alpha-value>)', 600: '#141414', 700: '#000000' },
+        sun: Object.fromEntries([50, 100, 300, 400, 500, 600].map((k) => [k, `rgb(var(--sun-${k}) / <alpha-value>)`])),
         ink: { DEFAULT: '#141414', soft: '#3A3A3A', muted: '#767676' },
-        cream: { DEFAULT: '#FFFCF2', tile: '#FEFAEC', line: '#F1E9CC' },
+        cream: { DEFAULT: 'rgb(var(--cream) / <alpha-value>)', tile: 'rgb(var(--cream-tile) / <alpha-value>)', line: 'rgb(var(--cream-line) / <alpha-value>)' },
       },
       fontFamily: { sans: ['Poppins', 'system-ui', 'sans-serif'] },
     },

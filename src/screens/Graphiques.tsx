@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useData } from '../lib/data'
 import { addMonths, daysInMonth, fmt, monthShort, signed, todayISO } from '../lib/format'
@@ -14,6 +15,7 @@ export default function GraphiquesScreen() {
   const [kind, setKind] = useState<Kind>('depense')
   const { txs, month, catById, cur, accounts, rootOf, goals, debts } = useData()
   const [open, setOpen] = useState<string | null>(null)
+  const [showLists, setShowLists] = useState(false)
 
   const rollup = useMemo(() => (k: Kind) => {
     const m = new Map<string, { value: number; subs: Map<string, number> }>()
@@ -78,7 +80,7 @@ export default function GraphiquesScreen() {
   return (
     <>
       <Header title="Graphiques" />
-      <div className="space-y-3 px-5 lg:mx-auto lg:max-w-4xl">
+      <div className="space-y-3 px-5 lg:mx-auto lg:max-w-5xl">
         <MonthBar />
         <div className="flex gap-2">
           {([['global', 'Global'], ['cat', 'Catégories'], ['rd', 'Évolution'], ['net', 'Valeur nette']] as [Tab, string][]).map(([k, l]) => (
@@ -87,7 +89,7 @@ export default function GraphiquesScreen() {
         </div>
       </div>
 
-      <div className="space-y-4 px-5 py-4 lg:mx-auto lg:max-w-4xl">
+      <div className="space-y-4 px-5 py-4 lg:mx-auto lg:max-w-5xl">
         {tab === 'global' && (() => {
           const inc = revAll.total, exp = depAll.total, sol = inc - exp
           const rate = inc > 0 ? Math.round((sol / inc) * 100) : null
@@ -99,14 +101,14 @@ export default function GraphiquesScreen() {
             const names = t.child_name.split(', ')
             for (const n of names) kids.set(n, (kids.get(n) ?? 0) + Math.round(t.amount / names.length))
           }
-          const saved = goals.reduce((a, g) => a + g.saved_amount, 0), target = goals.reduce((a, g) => a + g.target_amount, 0)
+          const saved = goals.reduce((a, g) => a + g.saved_amount, 0), target = goals.reduce((a, g) => a + (g.target_amount ?? 0), 0)
           const owe = debts.filter((d) => d.direction === 'je_dois').reduce((a, d) => a + Math.max(0, d.amount - d.paid), 0)
           const owed = debts.filter((d) => d.direction === 'on_me_doit').reduce((a, d) => a + Math.max(0, d.amount - d.paid), 0)
           return (
             <>
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <div className="rounded-2xl bg-emerald-50 p-4"><p className="text-xs text-emerald-700">Revenus</p><p className="tabular text-lg font-semibold">{fmt(inc, cur)}</p></div>
-                <div className="rounded-2xl bg-red-50 p-4"><p className="text-xs text-red-700">Dépenses</p><p className="tabular text-lg font-semibold">{fmt(exp, cur)}</p></div>
+                <button onClick={() => { setKind('revenu'); setTab('cat') }} className="rounded-2xl bg-emerald-50 p-4 text-left transition active:scale-[.98] hover:ring-2 hover:ring-emerald-200"><p className="flex justify-between text-xs text-emerald-700">Revenus <ChevronRight size={14} /></p><p className="tabular text-lg font-semibold">{fmt(inc, cur)}</p></button>
+                <button onClick={() => { setKind('depense'); setTab('cat') }} className="rounded-2xl bg-red-50 p-4 text-left transition active:scale-[.98] hover:ring-2 hover:ring-red-200"><p className="flex justify-between text-xs text-red-700">Dépenses <ChevronRight size={14} /></p><p className="tabular text-lg font-semibold">{fmt(exp, cur)}</p></button>
                 <div className="rounded-2xl bg-sun-100 p-4"><p className="text-xs">Solde du mois</p><p className={`tabular text-lg font-semibold ${sol < 0 ? 'text-red-600' : ''}`}>{signed(sol, cur)}</p></div>
                 <div className="rounded-2xl bg-cream-tile p-4"><p className="text-xs text-ink-muted">Part épargnée</p><p className="tabular text-lg font-semibold">{rate == null ? '—' : `${rate} %`}</p></div>
               </div>
@@ -168,6 +170,44 @@ export default function GraphiquesScreen() {
                   {owed > 0 && <p className="tabular mt-1 text-xs text-emerald-700">On me doit {fmt(owed, cur)}</p>}
                 </div>
               </section>
+
+              {(goals.length > 0 || debts.length > 0) && (
+                <>
+                  <button onClick={() => setShowLists(!showLists)} className="btn-ghost w-full py-2.5 text-sm lg:hidden">
+                    {showLists ? 'Masquer' : 'Voir'} le détail des épargnes et dettes <ChevronDown size={16} className={showLists ? 'rotate-180' : ''} />
+                  </button>
+                  <section className={`${showLists ? 'grid' : 'hidden'} gap-3 lg:grid lg:grid-cols-2`}>
+                    <div className="tile p-4">
+                      <h3 className="mb-2 font-semibold">Mes épargnes</h3>
+                      {goals.length === 0 && <p className="text-sm text-ink-muted">Aucune épargne.</p>}
+                      {goals.map((g) => (
+                        <div key={g.id} className="border-b border-cream-line py-2 last:border-0">
+                          <div className="flex items-center gap-2 text-sm">
+                            <BareIcon name={g.name} emoji={g.icon} size={18} />
+                            <span className="min-w-0 flex-1 truncate">{g.name}</span>
+                            <span className="tabular font-medium">{fmt(g.saved_amount, cur)}</span>
+                          </div>
+                          {g.target_amount ? <div className="mt-1.5"><Progress value={g.saved_amount} max={g.target_amount} /></div> : null}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="tile p-4">
+                      <h3 className="mb-2 font-semibold">Mes dettes</h3>
+                      {debts.length === 0 && <p className="text-sm text-ink-muted">Aucune dette.</p>}
+                      {debts.map((d) => (
+                        <div key={d.id} className="border-b border-cream-line py-2 last:border-0">
+                          <div className="flex items-center gap-2 text-sm">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${d.direction === 'je_dois' ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                            <span className="min-w-0 flex-1 truncate">{d.person} <span className="text-xs text-ink-muted">{d.direction === 'je_dois' ? '· je dois' : '· me doit'}</span></span>
+                            <span className="tabular font-medium">{fmt(Math.max(0, d.amount - d.paid), cur)}</span>
+                          </div>
+                          <div className="mt-1.5"><Progress value={d.paid} max={d.amount} color={d.paid >= d.amount ? '#10B981' : undefined} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </>
+              )}
 
               {kids.size > 0 && (
                 <section className="tile p-4">
@@ -284,7 +324,7 @@ export default function GraphiquesScreen() {
               <p className="mb-2 px-2 text-2xl font-bold">{fmt(net.end, cur)}</p>
               <ResponsiveContainer width="100%" height={220}>
                 <AreaChart data={net.points} margin={{ left: -10, right: 6 }}>
-                  <defs><linearGradient id="gnet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#E6B800" stopOpacity={0.45} /><stop offset="1" stopColor="#E6B800" stopOpacity={0} /></linearGradient></defs>
+                  <defs><linearGradient id="gnet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style={{ stopColor: "var(--accent-strong)", stopOpacity: 0.45 }} /><stop offset="1" style={{ stopColor: "var(--accent-strong)", stopOpacity: 0 }} /></linearGradient></defs>
                   <CartesianGrid vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} interval={4} />
                   <YAxis tickFormatter={short} tickLine={false} axisLine={false} fontSize={11} />

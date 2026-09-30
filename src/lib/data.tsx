@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { monthKey } from './format'
-import type { Account, Budget, Carnet, Category, Child, Debt, Goal, Member, Profile, Tx } from './types'
+import type { Account, Budget, Carnet, Category, Child, Debt, DebtPayment, Goal, Member, Profile, SavingsMove, Tx } from './types'
 
 const CARNET_KEY = 'bf-carnet'
 const readSel = () => { try { return localStorage.getItem(CARNET_KEY) } catch { return null } }
@@ -27,6 +27,9 @@ interface DataCtx {
   budgets: Budget[]
   goals: Goal[]
   debts: Debt[]
+  moves: SavingsMove[]
+  payments: DebtPayment[]
+  principalId: string | null
   month: string
   setMonth: (m: string) => void
   reload: () => Promise<void>
@@ -59,6 +62,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
   const [debts, setDebts] = useState<Debt[]>([])
+  const [moves, setMoves] = useState<SavingsMove[]>([])
+  const [payments, setPayments] = useState<DebtPayment[]>([])
   const [month, setMonth] = useState(monthKey(new Date()))
 
   useEffect(() => {
@@ -85,6 +90,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { setProfileReady(false); reloadProfile() }, [reloadProfile])
 
   const carnet = useMemo(() => carnets.find((c) => c.id === selId) ?? carnets[0] ?? null, [carnets, selId])
+  const principalId = (carnets.find((c) => c.role === 'proprietaire') ?? carnets[0])?.id ?? null
   const switchCarnet = (id: string) => { writeSel(id); setSelId(id) }
 
   const reload = useCallback(async () => {
@@ -101,17 +107,19 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
       return out
     }
-    const [m, a, cat, t, b, g, d, cu] = await Promise.all([
+    const [m, a, cat, t, b, g, d, cu, mv, pay] = await Promise.all([
       all<Member>('members', 'id,name,color,archived', 'created_at'),
       all<Account>('accounts', 'id,name,icon,initial_balance,archived', 'created_at'),
       all<Category>('categories', 'id,kind,name,icon,color,position,archived,parent_id,unit,is_default', 'position'),
-      all<Tx>('transactions', 'id,kind,amount,category_id,account_id,member_id,note,occurred_on,created_at,quantity,unit,child_name,for_month', 'occurred_on', false),
+      all<Tx>('transactions', 'id,kind,amount,category_id,account_id,member_id,note,occurred_on,created_at,quantity,unit,child_name,for_month,ref,beneficiary', 'occurred_on', false),
       all<Budget>('budgets', 'id,category_id,monthly_amount', 'created_at'),
-      all<Goal>('savings_goals', 'id,name,icon,target_amount,saved_amount,deadline', 'created_at'),
+      all<Goal>('savings_goals', 'id,name,icon,target_amount,saved_amount,deadline,kind,support,bank,phone,monthly_day,monthly_amount', 'created_at'),
       all<Debt>('debts', 'id,direction,person,amount,paid,due_date,note', 'created_at'),
       supabase.from('carnet_users').select('user_id').eq('carnet_id', c),
+      all<SavingsMove>('savings_moves', 'id,goal_id,amount,method,ref,note,moved_on', 'moved_on', false),
+      all<DebtPayment>('debt_payments', 'id,debt_id,amount,method,ref,note,paid_on', 'paid_on', false),
     ])
-    setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d)
+    setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d); setMoves(mv); setPayments(pay)
     // Enfants déclarés dans les profils des personnes de ce carnet
     const ids = (cu.data ?? []).map((r: { user_id: string }) => r.user_id)
     if (ids.length) {
@@ -153,11 +161,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
     return {
       session, authReady, carnets, carnet, carnetReady, switchCarnet, profile, profileReady, reloadProfile, familyChildren,
-      members, accounts, categories, txs, budgets, goals, debts, month, setMonth, reload, loadCarnet, cur: carnet?.currency ?? 'Ar',
+      members, accounts, categories, txs, budgets, goals, debts, moves, payments, principalId, month, setMonth, reload, loadCarnet, cur: carnet?.currency ?? 'Ar',
       catById, accById: new Map(accounts.map((x) => [x.id, x])), memById: new Map(members.map((x) => [x.id, x])),
       childrenOf, rootOf, catPath,
     }
-  }, [session, authReady, carnets, carnet, carnetReady, profile, profileReady, reloadProfile, familyChildren, members, accounts, categories, txs, budgets, goals, debts, month, reload, loadCarnet])
+  }, [session, authReady, carnets, carnet, carnetReady, profile, profileReady, reloadProfile, familyChildren, members, accounts, categories, txs, budgets, goals, debts, moves, payments, principalId, month, reload, loadCarnet])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

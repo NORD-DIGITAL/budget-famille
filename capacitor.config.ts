@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'mg.budgetfamille.app',
-  appName: 'Budget Famille',
+  appName: 'Budget.Go.Family',
   webDir: 'dist',
   android: { backgroundColor: '#FFCC00' },
 }

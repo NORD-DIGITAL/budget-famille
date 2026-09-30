@@ -6,17 +6,23 @@ import { fmt, parseAmount, todayISO } from '../lib/format'
 import type { Kind, Tx } from '../lib/types'
 import { BareIcon, Segmented, Sheet, useKeyboardOpen } from './ui'
 import { DateField } from './DatePicker'
+import { RefField } from './Money'
 
 
 export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: { open: boolean; onClose: () => void; tx: Tx | null; initialKind?: Kind }) {
   const { carnet, accounts, members, reload, cur, catById, childrenOf, catPath, familyChildren, rootOf } = useData()
   const kb = useKeyboardOpen()
+  const { profile } = useData()
+  const spouseLabel = profile?.marital_status === 'marie' ? 'Mon époux / épouse' : profile?.marital_status === 'conjoint' ? 'Mon conjoint(e)' : profile?.marital_status === 'partenaire' ? 'Mon/ma partenaire' : ''
   const [kind, setKind] = useState<Kind>('depense')
   const [amount, setAmount] = useState('')
   const [catId, setCatId] = useState<string | null>(null)
   const [level, setLevel] = useState<string | null>(null)
   const [qty, setQty] = useState('')
   const [kids, setKids] = useState<string[]>([])
+  const [people, setPeople] = useState<string[]>([])
+  const [other, setOther] = useState('')
+  const [txRef, setTxRef] = useState('')
   const [unitSel, setUnitSel] = useState<string | null>(null)
   const [forMonth, setForMonth] = useState('')
   const [accId, setAccId] = useState<string | null>(null)
@@ -34,10 +40,11 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
       const c = tx.category_id ? catById.get(tx.category_id) : undefined
       setKind(tx.kind); setAmount(tx.amount.toLocaleString('fr-FR')); setCatId(tx.category_id)
       setLevel(c ? ((childrenOf.get(c.id)?.length ? c.id : c.parent_id) ?? null) : null)
-      setQty(tx.quantity ? String(tx.quantity).replace('.', ',') : ''); setKids(tx.child_name ? tx.child_name.split(', ') : []); setUnitSel(tx.unit); setForMonth(tx.for_month ?? '')
+      setQty(tx.quantity ? String(tx.quantity).replace('.', ',') : ''); setKids(tx.child_name ? tx.child_name.split(', ') : []); setUnitSel(tx.unit); setForMonth(tx.for_month ?? ''); setTxRef(tx.ref ?? '')
+      { const b = tx.beneficiary ? tx.beneficiary.split(', ') : []; const known = ['Moi', spouseLabel]; setPeople(b.filter((x) => known.includes(x))); setOther(b.filter((x) => !known.includes(x)).join(', ')) }
       setAccId(tx.account_id); setMemId(tx.member_id); setDate(tx.occurred_on); setNote(tx.note ?? '')
     } else {
-      setKind(initialKind); setAmount(''); setCatId(null); setLevel(null); setQty(''); setKids([]); setUnitSel(null); setForMonth('')
+      setKind(initialKind); setAmount(''); setCatId(null); setLevel(null); setQty(''); setKids([]); setUnitSel(null); setForMonth(''); setPeople([]); setOther(''); setTxRef('')
       setAccId(accounts.find((a) => !a.archived)?.id ?? null); setMemId(members.find((m) => !m.archived)?.id ?? null); setDate(todayISO()); setNote('')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -52,8 +59,14 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
   const isEcolage = !!selected && /[ée]colage/i.test(selected.name)
   const qtyNum = Number(qty.replace(',', '.')) || 0
   const amt = parseAmount(amount)
-  const showKids = !!selected && (/enfant/i.test(selected.name) || inEcole)
-  const kidChoices = inEcole ? familyChildren.filter((k) => k.school === true) : familyChildren
+  const path = selected ? catPath(selected.id).toLowerCase() : ''
+  const isBebe = path.includes('bébé')
+  const isVet = /v[êe]tements? \/ lingerie|lingerie/i.test(rootOf(selected?.id ?? null)?.name ?? '')
+  const showKids = !!selected && !isVet && (isBebe || inEcole || /enfant/i.test(path))
+  const kidChoices = isBebe ? familyChildren.filter((k) => k.school === false) : inEcole ? familyChildren.filter((k) => k.school === true) : familyChildren
+  const togglePerson = (n: string) => setPeople(people.includes(n) ? people.filter((x) => x !== n) : [...people, n])
+  const accName = accounts.find((a) => a.id === accId)?.name ?? ''
+  const showRef = /mvola|orange/i.test(accName)
   const toggleKid = (n: string) => setKids(kids.includes(n) ? kids.filter((x) => x !== n) : [...kids, n])
 
   const pick = (id: string) => {
@@ -69,7 +82,9 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
     setBusy(true)
     const row = {
       carnet_id: carnet!.id, kind, amount: amt, category_id: catId, account_id: accId, member_id: memId, occurred_on: date, note: note.trim() || null,
-      quantity: unit && qtyNum > 0 ? qtyNum : null, unit: unit && qtyNum > 0 ? unit : null, child_name: showKids && kids.length ? kids.join(', ') : null, for_month: isEcolage && forMonth ? forMonth : null,
+      quantity: unit && qtyNum > 0 ? qtyNum : null, unit: unit && qtyNum > 0 ? unit : null, child_name: (showKids || isVet) && kids.length ? kids.join(', ') : null,
+      beneficiary: isVet ? [...people, ...other.split(',').map((x) => x.trim()).filter(Boolean)].join(', ') || null : null,
+      ref: showRef && txRef.trim() ? txRef.trim().toUpperCase() : null, for_month: isEcolage && forMonth ? forMonth : null,
     }
     const { error } = tx ? await supabase.from('transactions').update(row).eq('id', tx.id) : await supabase.from('transactions').insert(row)
     setBusy(false)
@@ -176,11 +191,23 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
           </div>
         )}
 
+        {isVet && (
+          <div className="space-y-2">
+            <p className="section-title text-base">Pour qui ? <span className="text-sm font-normal text-ink-muted">plusieurs possibles</span></p>
+            <div className="flex flex-wrap gap-2">
+              {['Moi', ...(spouseLabel ? [spouseLabel] : [])].map((n) => <button key={n} type="button" onClick={() => togglePerson(n)} className={chip(people.includes(n))}>{n}</button>)}
+              {familyChildren.map((k) => <button key={k.name} type="button" onClick={() => toggleKid(k.name)} className={chip(kids.includes(k.name))}>{k.name}</button>)}
+            </div>
+            <input className="input py-3" placeholder="Autre personne (facultatif)" aria-label="Autre personne" value={other} onChange={(e) => setOther(e.target.value)} />
+          </div>
+        )}
+
         <div>
           <p className="section-title mb-2 text-base">Compte</p>
           <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1">
             {accounts.filter((a) => !a.archived || a.id === accId).map((a) => <button key={a.id} onClick={() => setAccId(a.id)} className={chip(accId === a.id)}>{a.name}</button>)}
           </div>
+          {showRef && <div className="mt-3"><RefField id="tx-ref" value={txRef} onChange={setTxRef} /></div>}
         </div>
 
         <div>

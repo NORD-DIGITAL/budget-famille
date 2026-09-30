@@ -5,7 +5,9 @@ import { DataProvider, useData } from './lib/data'
 import { userInfo } from './lib/prefs'
 import { biometricAvailable, biometricEnabled, enableBiometric, markAuth, sessionExpired, verifyBiometric } from './lib/lock'
 import type { Kind, Tx } from './lib/types'
-import { Header, Sheet } from './components/ui'
+import { ByNord, Header, Sheet, Wordmark } from './components/ui'
+import { CarnetSwitcher } from './components/Carnets'
+import { applyTheme, themeForCarnet, useUserTheme } from './lib/theme'
 import TxForm from './components/TxForm'
 import { AuthScreen, Brand, OnboardingScreen } from './screens/Auth'
 import AccueilScreen from './screens/Carnet'
@@ -14,7 +16,9 @@ import GraphiquesScreen from './screens/Graphiques'
 import CompteScreen, { AllSheet, SUB_TITLES } from './screens/Plus'
 import { ProfilePage, ProfileSetup } from './screens/Profile'
 import type { SubPage } from './screens/Plus'
-import { BudgetPage, DebtsPage, GoalsPage } from './screens/Budget'
+import { BudgetPage } from './screens/Budget'
+import { DebtsPage, GoalsPage } from './screens/Savings'
+import { syncReminders } from './lib/reminders'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
@@ -44,7 +48,8 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       </button>
       <p className="mt-4 text-ink-muted">{busy ? 'Vérification…' : 'Touche pour déverrouiller'}</p>
       {err && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
-      <button onClick={() => supabase.auth.signOut()} className="mt-auto mb-8 py-3 text-[15px] text-[#4A56E2]">Utiliser mon mot de passe</button>
+      <button onClick={() => supabase.auth.signOut()} className="mt-auto py-3 text-[15px] text-[#4A56E2]">Utiliser mon mot de passe</button>
+      <ByNord className="mb-6 mt-2" />
     </div>
   )
 }
@@ -84,7 +89,7 @@ function usePullToRefresh(onRefresh: () => Promise<void>, enabled: boolean) {
 }
 
 function Shell() {
-  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile } = useData()
+  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile, principalId, goals } = useData()
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -96,6 +101,9 @@ function Shell() {
   const [bioMsg, setBioMsg] = useState('')
   const uid = session?.user.id ?? null
   const checkedFor = useRef<string | null>(null)
+  const userTheme = useUserTheme(uid)
+  useEffect(() => { if (carnet) syncReminders(goals, carnet.name) }, [goals, carnet])
+  useEffect(() => { applyTheme(themeForCarnet(carnet?.id ?? null, principalId, userTheme)) }, [carnet?.id, principalId, userTheme])
 
   // Le bouton retour d'Android ferme la sous-page ouverte
   useEffect(() => {
@@ -187,8 +195,8 @@ function Shell() {
       {/* Barre latérale (ordinateur) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-ink p-5 text-white lg:flex">
         <div className="mb-8 flex items-center gap-3 px-2">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-sun-500 text-ink"><Wallet size={24} /></div>
-          <p className="text-xl font-bold">Budget<span className="text-sun-500">Famille</span></p>
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sun-500 text-ink"><Wallet size={24} /></div>
+          <Wordmark className="text-xl" dark />
         </div>
         <button onClick={() => openForm(null)} className="btn-primary mb-6 w-full"><Plus size={20} /> Nouvelle opération</button>
         <nav className="space-y-1">
@@ -202,15 +210,17 @@ function Shell() {
         </nav>
         <div className="mt-auto space-y-2">
           <SideLink onClick={refreshAll} Icon={RefreshCw} label="Actualiser" />
+          <CarnetSwitcher variant="dark" />
           <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sun-500 font-semibold text-ink">{me.initials}</div>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{me.name}</p><p className="truncate text-xs text-neutral-400">{carnet.name}</p></div>
             <button onClick={() => supabase.auth.signOut()} aria-label="Se déconnecter" className="rounded-full p-2 text-neutral-400 hover:bg-white/10 hover:text-white"><LogOut size={18} /></button>
           </div>
+          <ByNord light className="pt-1" />
         </div>
       </aside>
 
-      <main className="mx-auto min-h-full max-w-lg bg-white pb-28 lg:my-6 lg:max-w-6xl lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm">
+      <main className="mx-auto min-h-full max-w-lg bg-white pb-28 lg:mx-6 lg:my-6 lg:max-w-none lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm 2xl:mx-10">
         {sub ? (
           <div className="lg:mx-auto lg:max-w-3xl">
             <Header title={SUB_TITLES[sub]} onBack={closeSub} />
