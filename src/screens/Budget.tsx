@@ -5,6 +5,7 @@ import { useData } from '../lib/data'
 import { daysInMonth, fmt, monthKey, monthLabel, parseAmount } from '../lib/format'
 import type { Budget } from '../lib/types'
 import { Empty, IconBubble, Progress, Sheet } from '../components/ui'
+import { RecurringSection } from '../components/Recurring'
 
 export function BudgetPage() {
   const { budgets, categories, txs, month, catById, cur, carnet, reload, catPath } = useData()
@@ -71,7 +72,7 @@ export function BudgetPage() {
   const usedCats = new Set(perCat.map((b) => b.category_id))
   return (
     <div className="space-y-4 p-4">
-      <p className="px-1 text-sm text-neutral-500">{monthLabel(month)} — budgets mensuels, reconduits chaque mois.</p>
+      <p className="px-1 text-sm text-neutral-500">{monthLabel(month)} — plafonds de dépenses, reconduits chaque mois. Les dépenses fixes sont plus bas.</p>
       {global ? <div className="card"><Row b={global} /></div> : (
         <button onClick={() => setEdit({ b: null, catId: null, amount: '', mode: 'global' })} className="card flex w-full items-center gap-3 p-4 text-left text-brand-600"><Plus size={20} /> Définir un budget global mensuel</button>
       )}
@@ -82,6 +83,8 @@ export function BudgetPage() {
       {perCat.length === 0 ? <Empty icon="🎯" text="Fixe un plafond pour les catégories à surveiller (Alimentation, Transport…)." /> : (
         <div className="card divide-y divide-neutral-100">{perCat.map((b) => <Row key={b.id} b={b} />)}</div>
       )}
+
+      <RecurringSection />
 
       <Sheet open={!!edit} onClose={() => setEdit(null)} title={edit?.b ? 'Modifier le budget' : 'Nouveau budget'}>
         {edit && (

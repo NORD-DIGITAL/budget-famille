@@ -11,6 +11,7 @@ export interface Tx {
   member_id: string | null; note: string | null; occurred_on: string; created_at: string
   quantity: number | null; unit: string | null; child_name: string | null; for_month: string | null; ref: string | null; beneficiary: string | null
 }
+export interface Recurring { id: string; label: string; amount: number; category_id: string | null; account_id: string | null; member_id: string | null; day_of_month: number; mode: 'auto' | 'valider'; active: boolean; last_month: string | null }
 export interface Budget { id: string; category_id: string | null; monthly_amount: number }
 export type GoalKind = 'objectif' | 'principal' | 'familiale' | 'materiel' | 'perso' | 'autre'
 export interface Goal {

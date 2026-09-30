@@ -11,6 +11,7 @@ import { dueReminders } from '../lib/reminders'
 import { useBadge } from '../lib/inbox'
 import { AccueilAside } from './AccueilAside'
 import { MonthBar, fmtMonthLong } from '../components/DatePicker'
+import { RecurringDueCard } from '../components/Recurring'
 import type { SubPage } from './Plus'
 
 export const LOW = 20000
@@ -155,6 +156,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
       {/* Opérations */}
       <section className="relative -mt-6 min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:mt-0 lg:px-8 lg:pt-4">
+        {!q && <RecurringDueCard />}
         <div className="mb-3 flex items-center gap-2">
           <h2 className="section-title flex-1">{q ? 'Résultats' : 'Opérations du mois'}</h2>
           {!q && (
