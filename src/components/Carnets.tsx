@@ -44,7 +44,7 @@ export function CarnetSwitcher({ variant = 'light' }: { variant?: 'light' | 'dar
   return (
     <>
       {variant === 'chip' ? (
-        <button onClick={() => setOpen(true)} className="flex max-w-full items-center gap-1.5 rounded-full border border-cream-line bg-white/80 py-1 pl-1 pr-3 text-xs">
+        <button onClick={() => setOpen(true)} className="flex max-w-full items-center gap-1.5 rounded-full border border-cream-line bg-white/85 py-1 pl-1 pr-3 text-xs text-ink">
           <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: color(carnet.id) }} />
           <span className="truncate">{other ? `Carnet : ${carnet.name}` : carnet.name}</span>
           <ChevronDown size={14} className="shrink-0" />

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BellRing, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, Landmark, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
+import { ShoppingCart, BellRing, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useData } from '../lib/data'
 import { dayLabel, fmt, signed } from '../lib/format'
@@ -53,34 +53,34 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
     { label: 'Revenu', Icon: ArrowDownLeft, run: () => onAdd('revenu') },
     { label: 'Budget', Icon: Target, run: () => openSub('budget') },
     { label: 'Épargne', Icon: PiggyBank, run: () => openSub('objectifs') },
-    { label: 'Comptes', Icon: Landmark, run: () => openSub('comptes') },
+    { label: 'Courses', Icon: ShoppingCart, run: () => openSub('courses') },
     { label: 'Membres', Icon: Users, run: () => openSub('membres') },
     { label: 'Graphiques', Icon: PieChart, run: goCharts },
     { label: 'Voir tout', Icon: MoreVertical, run: openAll },
   ]
 
   return (
-    <div className="bg-gradient-to-b from-[var(--hero)] via-cream to-cream lg:grid lg:grid-cols-[400px_1fr] lg:items-start lg:gap-2 lg:bg-none lg:bg-white lg:p-4 xl:grid-cols-[440px_1fr] 2xl:grid-cols-[440px_1fr_380px] 2xl:gap-4">
-      <div className="lg:sticky lg:top-4 lg:rounded-[28px] lg:bg-gradient-to-b lg:from-[var(--hero)] lg:via-cream lg:to-cream lg:pb-2">
+    <div className="bg-white lg:grid lg:grid-cols-[400px_1fr] lg:items-start lg:gap-2 lg:p-4 xl:grid-cols-[440px_1fr] 2xl:grid-cols-[440px_1fr_380px] 2xl:gap-4">
+      <div className="hero pb-8 lg:sticky lg:top-4 lg:overflow-hidden lg:rounded-[28px] lg:pb-2">
       {/* En-tête : salutation */}
       <header className="pt-safe px-5">
         <div className="flex items-center gap-3 py-4">
           <button onClick={goAccount} aria-label="Mon compte" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">{me.initials}</button>
           <div className="min-w-0 flex-1 leading-tight">
-            <p className="text-sm text-ink-muted">Bonjour</p>
-            <p className="truncate text-[17px] font-medium">{me.name}</p>
-            {me.phone && <p className="tabular text-sm text-ink-soft">{me.phone}</p>}
+            <p className="hero-muted text-sm">Bonjour</p>
+            <p className="truncate text-[1.0625rem] font-medium">{me.name}</p>
+            {me.phone && <p className="hero-muted tabular text-sm">{me.phone}</p>}
           </div>
-          <button aria-label="Actualiser" onClick={async () => { setRefreshing(true); await onRefresh(); setRefreshing(false) }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white">
+          <button aria-label="Actualiser" onClick={async () => { setRefreshing(true); await onRefresh(); setRefreshing(false) }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
             <RefreshCw size={22} strokeWidth={1.8} className={refreshing ? 'animate-spin' : ''} />
           </button>
-          <button aria-label={searching ? 'Fermer la recherche' : 'Rechercher'} onClick={() => { setSearching(!searching); setQ('') }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white">
+          <button aria-label={searching ? 'Fermer la recherche' : 'Rechercher'} onClick={() => { setSearching(!searching); setQ('') }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
             {searching ? <X size={24} strokeWidth={1.8} /> : <Search size={24} strokeWidth={1.8} />}
           </button>
         </div>
         <div className="-mt-2 mb-2 flex justify-center"><CarnetSwitcher variant="chip" /></div>
         {searching && (
-          <div className="mb-4 flex items-center gap-3 rounded-full border border-cream-line bg-white px-5 py-3">
+          <div className="mb-4 flex items-center gap-3 rounded-full border border-cream-line bg-white px-5 py-3 text-ink">
             <Search size={20} strokeWidth={1.8} className="text-ink-muted" />
             <input autoFocus className="w-full bg-transparent outline-none" placeholder="Rechercher (note, catégorie)" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
@@ -91,16 +91,16 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
         <>
           {/* Solde du mois */}
           <section className="px-5 pb-2 pt-2 text-center">
-            <p className="text-lg font-semibold">Solde <span className="font-normal text-ink-muted">du mois</span></p>
+            <p className="text-lg font-semibold">Solde <span className="hero-muted font-normal">du mois</span></p>
             <div className="mt-2 flex items-center justify-center gap-3">
-              <p className={`tabular text-[34px] font-semibold tracking-tight ${!hidden && inc - exp < LOW ? 'text-red-600' : ''}`}>{hidden ? '••••••' : signed(inc - exp, '')}<span className="ml-2 text-2xl">{cur}</span></p>
-              <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white">
+              <p className={`tabular text-[2.125rem] font-semibold tracking-tight ${!hidden && inc - exp < LOW ? 'low-balance' : ''}`}>{hidden ? '••••••' : signed(inc - exp, '')}<span className="ml-2 text-2xl">{cur}</span></p>
+              <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white/25">
                 {hidden ? <Eye size={24} strokeWidth={1.8} /> : <EyeOff size={24} strokeWidth={1.8} />}
               </button>
             </div>
             {!hidden && inc - exp < LOW && <p className="mx-auto mt-1 w-fit rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Solde bas : moins de {fmt(LOW, cur)}</p>}
-            <div className="mx-auto mt-4 max-w-xs"><MonthBar /></div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="mx-auto mt-4 max-w-xs text-ink"><MonthBar /></div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-ink">
               <div className="rounded-2xl bg-white px-4 py-3 text-left">
                 <p className="flex items-center gap-1.5 text-xs text-ink-muted"><span className="h-2 w-2 rounded-full bg-emerald-500" />Revenus</p>
                 <p className="tabular mt-0.5 font-semibold">{mask(fmt(inc, cur))}</p>
@@ -114,7 +114,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
           {/* Raccourcis */}
           {due.length > 0 && (
-            <button onClick={() => openSub('objectifs')} className="mx-5 mt-4 flex w-[calc(100%-2.5rem)] items-center gap-3 rounded-2xl border border-sun-300 bg-white px-4 py-3 text-left">
+            <button onClick={() => openSub('objectifs')} className="mx-5 mt-4 flex w-[calc(100%-2.5rem)] items-center gap-3 rounded-2xl border border-sun-300 bg-white px-4 py-3 text-left text-ink">
               <BellRing size={22} className="shrink-0 text-sun-600" />
               <span className="min-w-0 flex-1 text-sm"><b>Épargne du mois à faire</b><br /><span className="text-ink-muted">{due.map((g) => `${g.name} (le ${g.monthly_day}${g.monthly_amount ? `, ${fmt(g.monthly_amount, cur)}` : ''})`).join(' · ')}</span></span>
             </button>
@@ -123,17 +123,17 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
             {shortcuts.map(({ label, Icon, run }) => (
               <button key={label} onClick={run} className="flex flex-col items-center gap-2 text-center">
                 <Icon size={30} strokeWidth={1.5} />
-                <span className="text-[13px] leading-tight">{label}</span>
+                <span className="text-[0.8125rem] leading-tight">{label}</span>
               </button>
             ))}
           </section>
-          <ByNord className="pb-4" />
+          <ByNord onHero className="pb-4" />
         </>
       )}
       </div>
 
       {/* Opérations */}
-      <section className="min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:px-8 lg:pt-4">
+      <section className="relative -mt-6 min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:mt-0 lg:px-8 lg:pt-4">
         <h2 className="section-title mb-3">{q ? 'Résultats' : 'Opérations du mois'}</h2>
         {groups.length === 0 && <Empty icon="📒" text={q ? 'Aucun résultat.' : 'Aucune opération ce mois-ci. Touche le bouton jaune pour en ajouter une.'} />}
         <div className="space-y-5">

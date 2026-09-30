@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Info, Minus, Plus, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { Download, FileJson, FileSpreadsheet, Info, Minus, Plus, ShieldCheck, Trash2, TriangleAlert } from 'lucide-react'
+import { saveTextFile, slug, stamp, toCsv } from '../lib/files'
 import { Sheet } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
@@ -164,7 +165,7 @@ export function ProfileSetup() {
       {err && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
       <div className="mt-8 space-y-2">
         <button disabled={busy} onClick={save} className="btn-primary w-full text-lg">Enregistrer et continuer</button>
-        <button disabled={busy} onClick={later} className="w-full py-3 text-[15px] text-ink-muted">Plus tard</button>
+        <button disabled={busy} onClick={later} className="w-full py-3 text-[0.9375rem] text-ink-muted">Plus tard</button>
       </div>
     </div>
   )
@@ -191,6 +192,7 @@ export function ProfilePage() {
       {msg && <p className={`rounded-2xl px-4 py-3 text-sm ${msg.t === 'err' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{msg.s}</p>}
       <button disabled={busy} onClick={save} className="btn-primary w-full">Enregistrer</button>
       <p className="flex items-center gap-2 text-xs text-ink-muted"><ShieldCheck size={16} className="shrink-0" /> Ton profil n'est visible que par toi et les personnes de tes carnets.</p>
+      <ExportSection />
       <ResetSection />
     </div>
   )
@@ -242,7 +244,7 @@ function ResetSection() {
           </div>
           <div className="space-y-2">
             {RESET_LABELS.map(([k, l]) => (
-              <label key={k} className="flex items-center gap-3 rounded-2xl border border-cream-line bg-cream-tile px-4 py-3 text-[15px]">
+              <label key={k} className="flex items-center gap-3 rounded-2xl border border-cream-line bg-cream-tile px-4 py-3 text-[0.9375rem]">
                 <input type="checkbox" className="h-5 w-5 accent-red-500" checked={sel[k]} onChange={(e) => setSel({ ...sel, [k]: e.target.checked })} />{l}
               </label>
             ))}
@@ -256,6 +258,61 @@ function ResetSection() {
           </button>
         </div>
       </Sheet>
+    </section>
+  )
+}
+
+/** Extraction des données du carnet ouvert (fichiers à garder ou à partager). */
+function ExportSection() {
+  const d = useData()
+  const { carnet, catPath, accById, memById, cur } = d
+  const [msg, setMsg] = useState('')
+  const base = `${slug(carnet?.name ?? 'carnet')}_${stamp()}`
+  const done = (e: string | null, what: string) => setMsg(e ?? `${what} : fichier prêt.`)
+
+  const exportJson = async () => {
+    const payload = {
+      application: 'Budget.Go.Family by NORD DIGITAL', exporte_le: new Date().toISOString(), devise: cur,
+      carnet: { nom: carnet?.name }, profil: d.profile, membres: d.members, comptes: d.accounts, categories: d.categories,
+      operations: d.txs, budgets: d.budgets, epargnes: d.goals, mouvements_epargne: d.moves, dettes: d.debts, remboursements: d.payments,
+      listes_de_courses: d.lists, articles_de_courses: d.items,
+    }
+    done(await saveTextFile(`${base}_complet.json`, JSON.stringify(payload, null, 2), 'application/json'), 'Sauvegarde complète')
+  }
+  const exportOps = async () => {
+    const rows: unknown[][] = [['Date', 'Type', 'Montant', 'Catégorie', 'Compte', 'Membre', 'Quantité', 'Unité', 'Enfant(s)', 'Pour qui', 'Référence', 'Note']]
+    for (const t of d.txs) rows.push([t.occurred_on, t.kind === 'depense' ? 'Dépense' : 'Revenu', t.kind === 'depense' ? -t.amount : t.amount, catPath(t.category_id),
+      t.account_id ? accById.get(t.account_id)?.name : '', t.member_id ? memById.get(t.member_id)?.name : '', t.quantity ?? '', t.unit ?? '', t.child_name ?? '', t.beneficiary ?? '', t.ref ?? '', t.note ?? ''])
+    done(await saveTextFile(`${base}_operations.csv`, toCsv(rows), 'text/csv;charset=utf-8'), 'Opérations')
+  }
+  const exportSavings = async () => {
+    const rows: unknown[][] = [['Type', 'Nom', 'Date', 'Montant', 'Moyen', 'Référence', 'Note', 'Total / reste']]
+    for (const g of d.goals) {
+      rows.push(['Épargne', g.name, '', '', g.support ?? '', '', g.bank ?? g.phone ?? '', g.saved_amount])
+      for (const m of d.moves.filter((x) => x.goal_id === g.id)) rows.push(['  mouvement', g.name, m.moved_on, m.amount, m.method ?? '', m.ref ?? '', m.note ?? '', ''])
+    }
+    for (const x of d.debts) {
+      rows.push([x.direction === 'je_dois' ? 'Dette (je dois)' : 'Créance (on me doit)', x.person, x.due_date ?? '', x.amount, '', '', x.note ?? '', Math.max(0, x.amount - x.paid)])
+      for (const p of d.payments.filter((y) => y.debt_id === x.id)) rows.push(['  remboursement', x.person, p.paid_on, p.amount, p.method ?? '', p.ref ?? '', p.note ?? '', ''])
+    }
+    done(await saveTextFile(`${base}_epargnes_dettes.csv`, toCsv(rows), 'text/csv;charset=utf-8'), 'Épargnes et dettes')
+  }
+
+  const Btn = ({ icon, label, sub, onClick }: { icon: React.ReactNode; label: string; sub: string; onClick: () => void }) => (
+    <button onClick={onClick} className="flex w-full items-center gap-3 rounded-2xl border border-cream-line bg-cream-tile p-3 text-left">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white">{icon}</span>
+      <span className="min-w-0 flex-1"><span className="block font-medium">{label}</span><span className="block text-xs text-ink-muted">{sub}</span></span>
+      <Download size={18} className="text-ink-muted" />
+    </button>
+  )
+  return (
+    <section className="mt-6 space-y-3">
+      <h2 className="font-semibold">Extraction des données</h2>
+      <p className="text-sm text-ink-muted">Carnet « {carnet?.name} ». Sur téléphone, le fichier s'ouvre dans le menu de partage (WhatsApp, Drive, e-mail…).</p>
+      <Btn icon={<FileSpreadsheet size={20} />} label="Opérations (Excel)" sub={`${d.txs.length} dépenses et revenus · fichier CSV`} onClick={exportOps} />
+      <Btn icon={<FileSpreadsheet size={20} />} label="Épargnes et dettes (Excel)" sub="Avec l'historique des mouvements · fichier CSV" onClick={exportSavings} />
+      <Btn icon={<FileJson size={20} />} label="Sauvegarde complète" sub="Toutes les données du carnet · fichier JSON" onClick={exportJson} />
+      {msg && <p className="rounded-2xl bg-green-50 px-4 py-3 text-sm text-green-700">{msg}</p>}
     </section>
   )
 }

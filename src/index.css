@@ -7,14 +7,38 @@
 :root, [data-theme="soleil"] {
   --sun-50: 255 251 234; --sun-100: 255 243 194; --sun-300: 255 224 102; --sun-400: 255 214 10; --sun-500: 255 204 0; --sun-600: 230 184 0;
   --cream: 255 252 242; --cream-tile: 254 250 236; --cream-line: 241 233 204; --hero: #FFF3C4; --accent: #FFCC00; --accent-strong: #E6B800;
+  --hero-bg: linear-gradient(to bottom, var(--hero), rgb(var(--cream))); --hero-fg: #141414; --hero-muted: #767676; --hero-card: #ffffff;
 }
 [data-theme="menthe"] {
   --sun-50: 236 253 245; --sun-100: 209 250 229; --sun-300: 110 231 183; --sun-400: 52 211 153; --sun-500: 16 185 129; --sun-600: 5 150 105;
   --cream: 246 253 250; --cream-tile: 240 251 246; --cream-line: 204 240 222; --hero: #D1FAE5; --accent: #10B981; --accent-strong: #059669;
+  --hero-bg: linear-gradient(to bottom, var(--hero), rgb(var(--cream)));
 }
 [data-theme="lagon"] {
   --sun-50: 240 249 255; --sun-100: 224 242 254; --sun-300: 125 211 252; --sun-400: 56 189 248; --sun-500: 14 165 233; --sun-600: 2 132 199;
   --cream: 246 251 255; --cream-tile: 239 247 255; --cream-line: 205 229 248; --hero: #E0F2FE; --accent: #0EA5E9; --accent-strong: #0284C7;
+  --hero-bg: linear-gradient(to bottom, var(--hero), rgb(var(--cream)));
+}
+/* Thèmes vifs : accueil en dégradé coloré, texte blanc */
+[data-theme="tropique"] {
+  --sun-50: 255 247 237; --sun-100: 255 237 213; --sun-300: 253 186 116; --sun-400: 251 146 60; --sun-500: 249 115 22; --sun-600: 234 88 12;
+  --cream: 255 250 245; --cream-tile: 255 245 236; --cream-line: 254 222 196; --hero: #FFEDD5; --accent: #F97316; --accent-strong: #EA580C;
+  --hero-bg: linear-gradient(155deg, #FB923C 0%, #F43F5E 55%, #C026D3 100%); --hero-fg: #ffffff; --hero-muted: rgba(255,255,255,.78); --hero-card: rgba(255,255,255,.18); --hero-low: #FFE4E6;
+}
+[data-theme="ocean"] {
+  --sun-50: 236 254 255; --sun-100: 207 250 254; --sun-300: 103 232 249; --sun-400: 34 211 238; --sun-500: 6 182 212; --sun-600: 8 145 178;
+  --cream: 245 253 255; --cream-tile: 236 251 254; --cream-line: 196 238 247; --hero: #CFFAFE; --accent: #06B6D4; --accent-strong: #0891B2;
+  --hero-bg: linear-gradient(155deg, #4F46E5 0%, #0EA5E9 60%, #22D3EE 100%); --hero-fg: #ffffff; --hero-muted: rgba(255,255,255,.78); --hero-card: rgba(255,255,255,.16); --hero-low: #FFE4E6;
+}
+.hero { background: var(--hero-bg); color: var(--hero-fg); }
+.hero .hero-muted { color: var(--hero-muted); }
+.hero .hero-card { background: var(--hero-card); }
+.hero .hero-chip { background: var(--hero-card); color: var(--hero-fg); border-color: transparent; }
+.hero .low-balance { color: var(--hero-low, #dc2626); }
+/* taille d'affichage choisie sur mobile (Compte › Affichage) */
+@media (max-width: 1023px) {
+  html[data-size="compact"] { font-size: 14.5px; }
+  html[data-size="mini"] { font-size: 13px; }
 }
 /* grands écrans : tout s'agrandit un peu, proportionnellement */
 @media (min-width: 1600px) { html { font-size: 17px; } }

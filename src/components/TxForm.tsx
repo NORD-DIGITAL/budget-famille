@@ -101,7 +101,7 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
   }
 
   const chip = (active: boolean) => `shrink-0 rounded-full border px-4 py-2 text-sm transition ${active ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`
-  const tileCls = (active: boolean) => `flex ${kb ? 'h-11 flex-row items-center gap-2 px-2' : 'h-[92px] flex-col justify-between p-2.5'} rounded-2xl border text-left transition ${active ? 'border-sun-500 bg-sun-100' : 'border-cream-line bg-cream-tile'}`
+  const tileCls = (active: boolean) => `flex ${kb ? 'h-11 flex-row items-center gap-2 px-2' : 'h-[5.75rem] flex-col justify-between p-2.5'} rounded-2xl border text-left transition ${active ? 'border-sun-500 bg-sun-100' : 'border-cream-line bg-cream-tile'}`
 
   return (
     <Sheet open={open} onClose={onClose} title={tx ? "Modifier l'opération" : 'Nouvelle opération'}>
@@ -112,7 +112,7 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
           <input autoFocus={!tx} inputMode="numeric" placeholder="0" value={amount} aria-label="Montant"
             onChange={(e) => { const n = parseAmount(e.target.value); setAmount(n ? n.toLocaleString('fr-FR') : '') }}
             style={{ width: `${Math.max(2, amount.length + 1)}ch` }}
-            className={`tabular max-w-[75%] bg-transparent text-right text-[40px] font-semibold outline-none placeholder:text-neutral-300 ${kind === 'revenu' ? 'text-emerald-600' : 'text-ink'}`} />
+            className={`tabular max-w-[75%] bg-transparent text-right text-[2.5rem] font-semibold outline-none placeholder:text-neutral-300 ${kind === 'revenu' ? 'text-emerald-600' : 'text-ink'}`} />
           <span className="text-2xl font-medium text-ink-muted">{cur}</span>
         </div>
 
@@ -129,7 +129,7 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
             {levelCat && (
               <button onClick={() => { setCatId(levelCat.id); setQty('') }} className={tileCls(catId === levelCat.id)}>
                 <BareIcon name={levelCat.name} emoji={levelCat.icon} size={kb ? 18 : 28} />
-                <span className={`${kb ? "line-clamp-1" : "line-clamp-2"} text-[12px] leading-tight`}>{levelCat.name} (général)</span>
+                <span className={`${kb ? "line-clamp-1" : "line-clamp-2"} text-[0.75rem] leading-tight`}>{levelCat.name} (général)</span>
               </button>
             )}
             {tiles.map((c) => {
@@ -138,9 +138,9 @@ export default function TxForm({ open, onClose, tx, initialKind = 'depense' }: {
                 <button key={c.id} onClick={() => pick(c.id)} className={tileCls(catId === c.id)}>
                   <div className={`flex items-start justify-between ${kb ? 'shrink-0' : ''}`}>
                     <BareIcon name={c.name} emoji={c.icon} size={kb ? 18 : 28} />
-                    {hasKids && !kb && <span className="rounded-full bg-white px-1.5 text-[10px] text-ink-muted">+{childrenOf.get(c.id)!.filter((x) => !x.archived).length}</span>}
+                    {hasKids && !kb && <span className="rounded-full bg-white px-1.5 text-[0.625rem] text-ink-muted">+{childrenOf.get(c.id)!.filter((x) => !x.archived).length}</span>}
                   </div>
-                  <span className={`${kb ? "line-clamp-1" : "line-clamp-2"} break-words text-[12px] leading-tight`}>{c.name}</span>
+                  <span className={`${kb ? "line-clamp-1" : "line-clamp-2"} break-words text-[0.75rem] leading-tight`}>{c.name}</span>
                 </button>
               )
             })}

@@ -80,7 +80,7 @@ export function PhotoStrip({ carnetId, entity, entityId, refreshKey = 0 }: { car
         {photos.map((p) => (
           <button key={p.id} type="button" onClick={() => { setView(p); setConfirm(false) }} className="relative aspect-square overflow-hidden rounded-xl bg-neutral-100">
             {p.url && <img src={p.url} alt="Pièce jointe" className="h-full w-full object-cover" />}
-            {p.move_id && <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[9px] text-white">mvt</span>}
+            {p.move_id && <span className="absolute bottom-1 right-1 rounded bg-black/60 px-1 text-[0.5625rem] text-white">mvt</span>}
           </button>
         ))}
         <button type="button" disabled={busy} onClick={() => input.current?.click()} className="flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-ink/30 text-xs text-ink-muted">

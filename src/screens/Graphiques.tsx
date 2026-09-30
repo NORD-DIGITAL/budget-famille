@@ -84,7 +84,7 @@ export default function GraphiquesScreen() {
         <MonthBar />
         <div className="flex gap-2">
           {([['global', 'Global'], ['cat', 'Catégories'], ['rd', 'Évolution'], ['net', 'Valeur nette']] as [Tab, string][]).map(([k, l]) => (
-            <button key={k} onClick={() => setTab(k)} className={`flex-1 whitespace-nowrap rounded-full border px-1 py-2 text-[13px] transition ${tab === k ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>{l}</button>
+            <button key={k} onClick={() => setTab(k)} className={`flex-1 whitespace-nowrap rounded-full border px-1 py-2 text-[0.8125rem] transition ${tab === k ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>{l}</button>
           ))}
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function GraphiquesScreen() {
                 <section className="tile p-4">
                   <h3 className="mb-1 font-semibold">Où va l'argent</h3>
                   <div className="flex items-center gap-2">
-                    <div className="h-[150px] w-[150px] shrink-0">
+                    <div className="h-[9.375rem] w-[9.375rem] shrink-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={depAll.rows} dataKey="value" innerRadius={44} outerRadius={70} paddingAngle={2} stroke="none" isAnimationActive={false}>

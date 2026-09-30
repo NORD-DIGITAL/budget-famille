@@ -44,7 +44,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
           <p className="relative text-sm font-medium">{carnet?.name}</p>
           <p className="relative mt-6 text-sm">Valeur nette{total < LOW ? ' · solde bas' : ''}</p>
           <div className="relative flex items-center gap-3">
-            <p className="tabular text-[32px] font-semibold tracking-tight">{mask(fmt(total, ''))}<span className="ml-1.5 text-xl">{cur}</span></p>
+            <p className="tabular text-[2rem] font-semibold tracking-tight">{mask(fmt(total, ''))}<span className="ml-1.5 text-xl">{cur}</span></p>
             <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white/30">
               {hidden ? <Eye size={22} strokeWidth={1.8} /> : <EyeOff size={22} strokeWidth={1.8} />}
             </button>
@@ -62,7 +62,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
               return (
                 <div key={a.id} className="flex items-center gap-4 border-b border-neutral-100 py-3.5 last:border-0">
                   <IconTile name={a.name} emoji={a.icon} />
-                  <span className="flex-1 text-[17px]">{a.name}</span>
+                  <span className="flex-1 text-[1.0625rem]">{a.name}</span>
                   <span className={`tabular font-semibold ${!hidden && b < 0 ? 'text-red-600' : !hidden && b < LOW ? 'text-orange-500' : ''}`}>{mask(fmt(b, cur))}</span>
                 </div>
               )

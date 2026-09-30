@@ -12,7 +12,7 @@ export function Brand() {
   return (
     <div className="flex flex-col items-center gap-3">
       <img src={logo} alt="" className="h-20 w-20 rounded-[22px]" />
-      <Wordmark className="text-[28px]" />
+      <Wordmark className="text-[1.75rem]" />
     </div>
   )
 }
@@ -125,7 +125,7 @@ export function AuthScreen() {
         <button disabled={busy || !ready} className="btn-primary mt-2 w-full text-lg">{busy ? '…' : mode === 'login' ? 'Connexion' : "S'inscrire"}</button>
       </form>
 
-      <button type="button" onClick={switchMode} className="mb-8 mt-6 py-2 text-center text-[15px] text-[#4A56E2]">
+      <button type="button" onClick={switchMode} className="mb-8 mt-6 py-2 text-center text-[0.9375rem] text-[#4A56E2]">
         {mode === 'login' ? 'Pas encore de compte ? Inscris-toi' : "J'ai déjà un compte · Connexion"}
       </button>
       <ByNord className="mb-6 mt-auto" />

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
+import { Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { DataProvider, useData } from './lib/data'
 import { userInfo } from './lib/prefs'
@@ -19,6 +19,8 @@ import type { SubPage } from './screens/Plus'
 import { BudgetPage } from './screens/Budget'
 import { DebtsPage, GoalsPage } from './screens/Savings'
 import { syncReminders } from './lib/reminders'
+import { CoursesPage } from './screens/Courses'
+import { FeedbackPage, InboxPage, useInboxCount } from './screens/Feedback'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
@@ -48,7 +50,7 @@ function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       </button>
       <p className="mt-4 text-ink-muted">{busy ? 'Vérification…' : 'Touche pour déverrouiller'}</p>
       {err && <p className="mt-4 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
-      <button onClick={() => supabase.auth.signOut()} className="mt-auto py-3 text-[15px] text-[#4A56E2]">Utiliser mon mot de passe</button>
+      <button onClick={() => supabase.auth.signOut()} className="mt-auto py-3 text-[0.9375rem] text-[#4A56E2]">Utiliser mon mot de passe</button>
       <ByNord className="mb-6 mt-2" />
     </div>
   )
@@ -89,7 +91,8 @@ function usePullToRefresh(onRefresh: () => Promise<void>, enabled: boolean) {
 }
 
 function Shell() {
-  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile, principalId, goals } = useData()
+  const { session, authReady, carnet, carnetReady, profile, profileReady, reload, loadCarnet, reloadProfile, principalId, goals, isAdmin } = useData()
+  const inboxN = useInboxCount()
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -171,7 +174,7 @@ function Shell() {
     { k: 'compte', label: 'Compte', Icon: UserRound },
   ]
   const NavBtn = ({ k, label, Icon }: (typeof tabs)[number]) => (
-    <button onClick={() => setTab(k)} className={`flex flex-1 flex-col items-center gap-1 pb-2.5 pt-3 text-[12px] ${tab === k ? 'text-white' : 'text-neutral-400'}`}>
+    <button onClick={() => setTab(k)} className={`flex flex-1 flex-col items-center gap-1 pb-2.5 pt-3 text-[0.75rem] ${tab === k ? 'text-white' : 'text-neutral-400'}`}>
       <Icon size={24} strokeWidth={tab === k ? 2.2 : 1.7} className={tab === k ? 'text-sun-500' : ''} />{label}
     </button>
   )
@@ -207,8 +210,11 @@ function Shell() {
           <SideLink active={sub === 'budget'} onClick={() => openSub('budget')} Icon={Target} label="Budget du mois" />
           <SideLink active={sub === 'objectifs'} onClick={() => openSub('objectifs')} Icon={PiggyBank} label="Épargne" />
           <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
+          <SideLink active={sub === 'courses'} onClick={() => openSub('courses')} Icon={ShoppingCart} label="Faire les courses" />
         </nav>
         <div className="mt-auto space-y-2">
+          <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
+          {isAdmin && <SideLink active={sub === 'inbox'} onClick={() => openSub('inbox')} Icon={Inbox} label={`Boîte de réception${inboxN ? ` (${inboxN})` : ''}`} />}
           <SideLink onClick={refreshAll} Icon={RefreshCw} label="Actualiser" />
           <CarnetSwitcher variant="dark" />
           <div className="flex items-center gap-3 rounded-2xl bg-white/5 p-3">
@@ -232,6 +238,9 @@ function Shell() {
             {sub === 'membres' && <MembersPage />}
             {sub === 'partage' && <SharePage />}
             {sub === 'profil' && <ProfilePage />}
+            {sub === 'courses' && <CoursesPage />}
+            {sub === 'remarques' && <FeedbackPage />}
+            {sub === 'inbox' && <InboxPage />}
           </div>
         ) : (
           <>
@@ -253,7 +262,7 @@ function Shell() {
             <NavBtn {...tabs[1]} />
             <div className="flex flex-1 justify-center">
               <button aria-label="Ajouter une opération" onClick={() => openForm(null)}
-                className="-mt-7 mb-2 flex h-[62px] w-[62px] items-center justify-center rounded-[22px] border-4 border-ink bg-sun-500 text-ink shadow-lg active:scale-95">
+                className="-mt-7 mb-2 flex h-[3.875rem] w-[3.875rem] items-center justify-center rounded-[22px] border-4 border-ink bg-sun-500 text-ink shadow-lg active:scale-95">
                 <Plus size={32} strokeWidth={2.4} />
               </button>
             </div>

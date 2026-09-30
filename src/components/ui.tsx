@@ -3,12 +3,13 @@ import {
   ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home,
   Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X,
 } from 'lucide-react'
-import { Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
+import { Hand, Palette, Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
+  [/beaut/i, Sparkles], [/coiffure|^taly|brushing/i, Scissors], [/maquillage/i, Palette], [/manucure|manicure/i, Hand],
   [/connectivit/i, Wifi], [/data mobile/i, Signal], [/wi-?fi/i, Wifi], [/cr[ée]dit t[ée]l/i, Smartphone], [/petit d[ée]j/i, Coffee],
   [/^lait|yaourt/i, Milk], [/couche/i, Baby], [/m[ée]dicament/i, Pill], [/v[êe]tement|lingerie/i, Shirt],
   [/vihindr|haricot|tsaramaso/i, Bean], [/v[ôo]rogno|akoho|poulet|volaille/i, Drumstick], [/p[âa]te|soupe/i, Soup], [/^mofo|\bpain\b/i, Croissant],
@@ -128,7 +129,7 @@ export function Empty({ icon, text }: { icon: string; text: string }) {
   return (
     <div className="flex flex-col items-center gap-3 py-14 text-center text-ink-muted">
       <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-sun-100 text-3xl">{icon}</div>
-      <p className="max-w-[240px] text-sm">{text}</p>
+      <p className="max-w-[15rem] text-sm">{text}</p>
     </div>
   )
 }
@@ -143,7 +144,7 @@ export function Row({ icon, label, sub, right, onClick, danger }: { icon?: React
     <button onClick={onClick} className={`flex w-full items-center gap-4 border-b border-neutral-100 px-5 py-4 text-left last:border-0 active:bg-cream-tile ${danger ? 'text-red-500' : ''}`}>
       {icon}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[17px]">{label}</p>
+        <p className="truncate text-[1.0625rem]">{label}</p>
         {sub && <p className="truncate text-sm text-ink-muted">{sub}</p>}
       </div>
       {right ?? (onClick && !danger ? <ChevronRight size={22} className="text-neutral-400" /> : null)}
@@ -157,10 +158,10 @@ export function Wordmark({ className = '', dark }: { className?: string; dark?: 
 }
 
 /** Signature obligatoire des projets NORD DIGITAL. */
-export function ByNord({ className = '', light }: { className?: string; light?: boolean }) {
+export function ByNord({ className = '', light, onHero }: { className?: string; light?: boolean; onHero?: boolean }) {
   return (
-    <p className={`text-center text-[11px] uppercase tracking-[0.18em] ${light ? 'text-neutral-500' : 'text-ink-muted'} ${className}`}>
-      by <span className={`font-semibold ${light ? 'text-neutral-300' : 'text-ink'}`}>NORD DIGITAL</span>
+    <p className={`text-center text-[0.6875rem] uppercase tracking-[0.18em] ${onHero ? 'hero-muted' : light ? 'text-neutral-500' : 'text-ink-muted'} ${className}`}>
+      by <span className={`font-semibold ${onHero ? '' : light ? 'text-neutral-300' : 'text-ink'}`}>NORD DIGITAL</span>
     </p>
   )
 }

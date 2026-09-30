@@ -88,7 +88,7 @@ export function CategoriesPage() {
     <div key={c.id}>
       <button onClick={() => edit(c)} className={`flex w-full items-center gap-3 border-b border-neutral-100 py-3 text-left ${c.archived ? 'opacity-40' : ''}`} style={{ paddingLeft: lvl * 28 }}>
         {lvl === 0 ? <IconBubble name={c.name} icon={c.icon} color={c.color} size={40} /> : <BareIcon name={c.name} emoji={c.icon} size={22} />}
-        <span className={`flex-1 ${lvl === 0 ? 'font-medium' : 'text-[15px]'}`}>{c.name}</span>
+        <span className={`flex-1 ${lvl === 0 ? 'font-medium' : 'text-[0.9375rem]'}`}>{c.name}</span>
         {c.unit && <span className="pill py-0.5 text-xs">{c.unit.replace('|', ' / ')}</span>}
         {c.is_default ? <Lock size={14} className="text-neutral-300" /> : <span className="pill py-0.5 text-xs">Perso</span>}
       </button>
@@ -252,7 +252,7 @@ export function SharePage() {
 
       <section className="space-y-2">
         <h2 className="section-title">Comment ça marche</h2>
-        <ol className="space-y-2 text-[15px] text-ink-soft">
+        <ol className="space-y-2 text-[0.9375rem] text-ink-soft">
           <li><b>1.</b> Envoie ce code à ton conjoint ou à un proche (WhatsApp, SMS…).</li>
           <li><b>2.</b> Il installe l'app et crée son propre compte (son email, son mot de passe).</li>
           <li><b>3.</b> Il ouvre <b>Compte › Famille & partage</b> et tape le code dans « Rejoindre le carnet d'un proche ».</li>

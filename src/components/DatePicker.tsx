@@ -64,7 +64,7 @@ export function Calendar({ value, onPick, mode = 'day', min, max, startYear }: {
             const isToday = t.y === dt.getFullYear() && t.m === dt.getMonth() && t.d === dt.getDate()
             return (
               <button key={i} type="button" disabled={!!out(v)} onClick={() => onPick(v)}
-                className={`${cell} mx-auto h-10 w-10 text-[15px] ${isSel ? sel : isToday ? today : ''} ${c.cur ? '' : 'text-neutral-300'} disabled:opacity-30`}>{c.d}</button>
+                className={`${cell} mx-auto h-10 w-10 text-[0.9375rem] ${isSel ? sel : isToday ? today : ''} ${c.cur ? '' : 'text-neutral-300'} disabled:opacity-30`}>{c.d}</button>
             )
           })}
         </div>
@@ -81,7 +81,7 @@ export function Calendar({ value, onPick, mode = 'day', min, max, startYear }: {
           return (
             <button key={i} type="button" disabled={!!out(v)}
               onClick={() => { if (mode === 'month') onPick(v); else { setY(yy); setM(mm); setView('days') } }}
-              className={`${cell} mx-auto h-16 w-16 text-[15px] ${isSel ? sel : isToday ? today : ''} ${i >= 12 ? 'text-neutral-300' : ''} disabled:opacity-30`}>{MONTHS[mm]}</button>
+              className={`${cell} mx-auto h-16 w-16 text-[0.9375rem] ${isSel ? sel : isToday ? today : ''} ${i >= 12 ? 'text-neutral-300' : ''} disabled:opacity-30`}>{MONTHS[mm]}</button>
           )
         })}
       </div>
@@ -94,7 +94,7 @@ export function Calendar({ value, onPick, mode = 'day', min, max, startYear }: {
           const isSel = selY === yy
           return (
             <button key={i} type="button" disabled={!!out(String(yy))} onClick={() => { setY(yy); setView('months') }}
-              className={`${cell} mx-auto h-16 w-16 text-[15px] ${isSel ? sel : t.y === yy ? today : ''} ${yy < decade || yy > decade + 9 ? 'text-neutral-300' : ''} disabled:opacity-30`}>{yy}</button>
+              className={`${cell} mx-auto h-16 w-16 text-[0.9375rem] ${isSel ? sel : t.y === yy ? today : ''} ${yy < decade || yy > decade + 9 ? 'text-neutral-300' : ''} disabled:opacity-30`}>{yy}</button>
           )
         })}
       </div>
