@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Mail, ShoppingCart, BellRing, SlidersHorizontal, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useData } from '../lib/data'
-import { dayLabel, daysInMonth, fmt, signed } from '../lib/format'
+import { dayLabel, daysInMonth, fmt, signed, todayISO } from '../lib/format'
 import { useHidden, userInfo } from '../lib/prefs'
 import type { Kind, Tx } from '../lib/types'
 import { ByNord, Empty, IconTile } from '../components/ui'
@@ -41,6 +41,13 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
   const monthTx = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(month)), [txs, month])
   const inc = monthTx.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
   const exp = monthTx.filter((t) => t.kind === 'depense').reduce((a, t) => a + t.amount, 0)
+  // Solde cumulé : soldes de départ des comptes + tout ce qui s'est passé avant ce mois (report) + le mois
+  const report = useMemo(() => {
+    const first = `${month}-01`
+    return accounts.reduce((a, x) => a + (x.initial_balance ?? 0), 0)
+      + txs.filter((t) => t.occurred_on < first).reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)
+  }, [accounts, txs, month])
+  const solde = report + inc - exp
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -113,14 +120,15 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
         <>
           {/* Solde du mois */}
           <section className="px-5 pb-2 pt-2 text-center">
-            <p className="text-lg font-semibold">Solde <span className="hero-muted font-normal">du mois</span></p>
+            <p className="text-lg font-semibold">Solde <span className="hero-muted font-normal">{month === todayISO().slice(0, 7) ? 'actuel' : month < todayISO().slice(0, 7) ? `fin ${fmtMonthLong(month).toLowerCase()}` : 'prévu'}</span></p>
             <div className="mt-2 flex items-center justify-center gap-3">
-              <p className={`tabular text-[2.125rem] font-semibold tracking-tight ${!hidden && inc - exp < LOW ? 'low-balance' : ''}`}>{hidden ? '••••••' : signed(inc - exp, '')}<span className="ml-2 text-2xl">{cur}</span></p>
+              <p className={`tabular text-[2.125rem] font-semibold tracking-tight ${!hidden && solde < LOW ? 'low-balance' : ''}`}>{hidden ? '••••••' : signed(solde, '')}<span className="ml-2 text-2xl">{cur}</span></p>
               <button onClick={toggleHidden} aria-label={hidden ? 'Afficher les montants' : 'Masquer les montants'} className="rounded-full p-1.5 hover:bg-white/25">
                 {hidden ? <Eye size={24} strokeWidth={1.8} /> : <EyeOff size={24} strokeWidth={1.8} />}
               </button>
             </div>
-            {!hidden && inc - exp < LOW && <p className="mx-auto mt-1 w-fit rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Solde bas : moins de {fmt(LOW, cur)}</p>}
+            <div className="mx-auto mt-1 flex w-fit flex-wrap justify-center gap-x-4 text-sm"><span className="hero-muted">Report du mois précédent : <b className="tabular font-medium">{mask(signed(report, cur))}</b></span><span className="hero-muted">Ce mois : <b className="tabular font-medium">{mask(signed(inc - exp, cur))}</b></span></div>
+            {!hidden && solde < LOW && <p className="mx-auto mt-1 w-fit rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Solde bas : moins de {fmt(LOW, cur)}</p>}
             <div className="mx-auto mt-4 max-w-xs text-ink"><MonthBar /></div>
             <div className="mt-4 grid grid-cols-2 gap-3 text-ink">
               <div className="rounded-2xl bg-white px-4 py-3 text-left">
