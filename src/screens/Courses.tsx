@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Check, ClipboardCheck, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
+import { useBackHandler } from '../lib/back'
 import { fmt, parseAmount, todayISO } from '../lib/format'
 import type { ShoppingItem, ShoppingList } from '../lib/types'
 import { BareIcon, Empty, Sheet } from '../components/ui'
@@ -14,6 +15,8 @@ const STATUS: Record<ShoppingList['status'], [string, string]> = {
 }
 const chip = (on: boolean) => `shrink-0 rounded-full border px-4 py-2 text-sm transition ${on ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`
 const listName = (d: string) => `Courses du ${new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}`
+const qtyLabel = (i: ShoppingItem) => (i.quantity ? `${String(i.quantity).replace('.', ',')} ${i.unit ?? ''}`.trim() : '')
+const unitPrice = (i: ShoppingItem, closed: boolean) => { const p = (closed ? i.final_price : i.final_price ?? i.est_price) ?? 0; return i.quantity && i.unit && p ? `${Math.round(p / i.quantity).toLocaleString('fr-FR')} Ar/${i.unit}` : '' }
 const fmtNum = (v: string) => { const n = parseAmount(v); return n ? n.toLocaleString('fr-FR') : '' }
 
 export function CoursesPage() {
@@ -77,6 +80,7 @@ export function CoursesPage() {
 type ItemEdit = { item: ShoppingItem | null; catId: string | null; label: string; qty: string; unit: string; price: string; q: string }
 
 function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) {
+  useBackHandler(true, onBack)
   const { items: all, categories, catById, catPath, cur, carnet, reload, accounts, members } = useData()
   const items = all.filter((i) => i.list_id === list.id)
   const live = items.filter((i) => !i.cancelled)
@@ -114,8 +118,11 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
   const finalize = async () => {
     if (!fin) return
     if (!fin.checked) return setErr('Coche la case pour confirmer que tu as vérifié les prix.')
-    const lines = taken.map((i) => ({ i, price: parseAmount(fin.prices[i.id] ?? '') })).filter((x) => x.price > 0)
-    if (!lines.length) return setErr('Aucun article pris avec un prix.')
+    const all = taken.map((i) => ({ i, price: parseAmount(fin.prices[i.id] ?? '') }))
+    const zero = all.filter((x) => x.price <= 0)
+    if (zero.length) return setErr(`${zero.length} article${zero.length > 1 ? 's' : ''} à 0 Ar : indique le prix ou supprime ${zero.length > 1 ? 'ces articles' : 'cet article'} pour finaliser.`)
+    const lines = all
+    if (!lines.length) return setErr('Aucun article pris.')
     setBusy(true)
     const accName = accounts.find((a) => a.id === fin.acc)?.name ?? ''
     const rows = lines.map(({ i, price }) => ({
@@ -170,11 +177,14 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
               ) : <BareIcon name={c?.name ?? ''} emoji={c?.icon} size={26} />}
               <button disabled={closed || i.cancelled} onClick={() => openItem(i)} className="min-w-0 flex-1 text-left">
                 <p className={`truncate font-medium ${i.cancelled ? 'line-through' : ''}`}>{i.label || c?.name || 'Article'}</p>
-                <p className="truncate text-xs text-ink-muted">{[c ? catPath(c.id) : null, i.quantity ? `${String(i.quantity).replace('.', ',')} ${i.unit ?? ''}` : null].filter(Boolean).join(' · ')}</p>
+                <p className="truncate text-xs text-ink-muted">{c ? catPath(c.id) : ''}</p>
               </button>
-              {ready && i.taken && !i.cancelled ? (
-                <PriceInput value={i.final_price} onSave={(v) => upd(i.id, { final_price: v })} />
-              ) : <span className="tabular text-sm font-semibold">{fmt((closed ? i.final_price : i.est_price) ?? 0, cur)}</span>}
+              <div className="flex shrink-0 flex-col items-end">
+                {ready && i.taken && !i.cancelled ? (
+                  <PriceInput value={i.final_price} onSave={(v) => upd(i.id, { final_price: v })} />
+                ) : <span className={`tabular text-sm font-semibold ${!i.cancelled && !((closed ? i.final_price : i.est_price) ?? 0) ? 'text-red-500' : ''}`}>{fmt((closed ? i.final_price : i.est_price) ?? 0, cur)}</span>}
+                {qtyLabel(i) && <span className="tabular text-[0.6875rem] text-ink-muted">{qtyLabel(i)}{unitPrice(i, closed) ? ` · ${unitPrice(i, closed)}` : ''}</span>}
+              </div>
               {!closed && (
                 <button onClick={() => upd(i.id, { cancelled: !i.cancelled, taken: false })} aria-label={i.cancelled ? "Remettre l'article" : "Annuler l'article"} className="rounded-full p-2 text-neutral-400">
                   {i.cancelled ? <RotateCcw size={18} /> : <X size={18} />}
@@ -235,7 +245,14 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
                 ) : <input id="it-unit" className="input" placeholder="kg, pièce, litre…" value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })} />}
               </div>
             </div>
-            <div><label className="label" htmlFor="it-price">Prix provisoire ({cur})</label><input id="it-price" className="input tabular" inputMode="numeric" value={edit.price} onChange={(e) => setEdit({ ...edit, price: fmtNum(e.target.value) })} /></div>
+            <div>
+              <label className="label" htmlFor="it-price">Prix provisoire ({cur}){edit.qty && edit.unit ? ` pour ${edit.qty} ${edit.unit}` : ''}</label>
+              <div className="relative">
+                <input id="it-price" className="input tabular pr-24" inputMode="numeric" value={edit.price} onChange={(e) => setEdit({ ...edit, price: fmtNum(e.target.value) })} />
+                {edit.unit && <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-sm text-ink-muted">{edit.qty ? `${edit.qty} ${edit.unit}` : `/ ${edit.unit}`}</span>}
+              </div>
+              {(() => { const q = Number(edit.qty.replace(',', '.')); const p = parseAmount(edit.price); return q > 0 && p > 0 && edit.unit ? <p className="mt-1 text-xs text-ink-muted">soit {fmt(Math.round(p / q), cur)} / {edit.unit}</p> : null })()}
+            </div>
             {err && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
             <button onClick={saveItem} className="btn-primary w-full">{edit.item ? 'Enregistrer' : 'Ajouter à la liste'}</button>
           </div>
@@ -254,8 +271,15 @@ function ListView({ list, onBack }: { list: ShoppingList; onBack: () => void }) 
                 return (
                   <div key={i.id} className="flex items-center gap-3 border-b border-neutral-100 py-2.5 last:border-0">
                     <BareIcon name={c?.name ?? ''} emoji={c?.icon} size={22} />
-                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{i.label || c?.name}</p><p className="tabular text-xs text-ink-muted">prévu {fmt(i.est_price ?? 0, cur)}</p></div>
-                    <input className="input tabular w-32 py-2 text-right" inputMode="numeric" aria-label={`Prix réel de ${i.label || c?.name}`} value={fin.prices[i.id] ?? ''} onChange={(e) => setFin({ ...fin, prices: { ...fin.prices, [i.id]: fmtNum(e.target.value) } })} />
+                    <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{i.label || c?.name}</p><p className="tabular text-xs text-ink-muted">prévu {fmt(i.est_price ?? 0, cur)}{qtyLabel(i) ? ` · ${qtyLabel(i)}` : ''}</p>
+                      {!parseAmount(fin.prices[i.id] ?? '') && <p className="text-xs font-medium text-red-600">Prix à 0 Ar : corrige ou supprime</p>}</div>
+                    <div className="flex flex-col items-end">
+                      <input className={`input tabular w-32 py-2 text-right ${!parseAmount(fin.prices[i.id] ?? '') ? 'border-red-400 bg-red-50' : ''}`} inputMode="numeric" aria-label={`Prix réel de ${i.label || c?.name}`} value={fin.prices[i.id] ?? ''} onChange={(e) => setFin({ ...fin, prices: { ...fin.prices, [i.id]: fmtNum(e.target.value) } })} />
+                      {qtyLabel(i) && <span className="mt-0.5 text-[0.6875rem] text-ink-muted">pour {qtyLabel(i)}</span>}
+                    </div>
+                    {!parseAmount(fin.prices[i.id] ?? '') && (
+                      <button onClick={async () => { await upd(i.id, { cancelled: true, taken: false }); const p = { ...fin.prices }; delete p[i.id]; setFin({ ...fin, prices: p }); setErr('') }} aria-label={`Supprimer ${i.label || c?.name}`} className="rounded-full p-2 text-red-500 hover:bg-red-50"><Trash2 size={18} /></button>
+                    )}
                   </div>
                 )
               })}

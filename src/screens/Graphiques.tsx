@@ -6,6 +6,7 @@ import { addMonths, daysInMonth, fmt, monthShort, signed, todayISO } from '../li
 import type { Kind } from '../lib/types'
 import { BareIcon, Empty, Header, IconTile, Segmented, Progress } from '../components/ui'
 import { MonthBar } from '../components/DatePicker'
+import { openCatHistory, openTx } from '../components/TxDetail'
 
 type Tab = 'global' | 'cat' | 'rd' | 'net'
 const short = (n: number) => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1).replace('.0', '') + 'M' : Math.abs(n) >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n)
@@ -92,6 +93,8 @@ export default function GraphiquesScreen() {
       <div className="space-y-4 px-5 py-4 lg:mx-auto lg:max-w-5xl">
         {tab === 'global' && (() => {
           const inc = revAll.total, exp = depAll.total, sol = inc - exp
+          const first = `${month}-01`
+          const report = accounts.reduce((a, x) => a + x.initial_balance, 0) + txs.filter((t) => t.occurred_on < first).reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)
           const rate = inc > 0 ? Math.round((sol / inc) * 100) : null
           const max = Math.max(inc, exp, 1)
           const monthTx = txs.filter((t) => t.occurred_on.startsWith(month))
@@ -109,7 +112,7 @@ export default function GraphiquesScreen() {
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <button onClick={() => { setKind('revenu'); setTab('cat') }} className="rounded-2xl bg-emerald-50 p-4 text-left transition active:scale-[.98] hover:ring-2 hover:ring-emerald-200"><p className="flex justify-between text-xs text-emerald-700">Revenus <ChevronRight size={14} /></p><p className="tabular text-lg font-semibold">{fmt(inc, cur)}</p></button>
                 <button onClick={() => { setKind('depense'); setTab('cat') }} className="rounded-2xl bg-red-50 p-4 text-left transition active:scale-[.98] hover:ring-2 hover:ring-red-200"><p className="flex justify-between text-xs text-red-700">Dépenses <ChevronRight size={14} /></p><p className="tabular text-lg font-semibold">{fmt(exp, cur)}</p></button>
-                <div className="rounded-2xl bg-sun-100 p-4"><p className="text-xs">Solde du mois</p><p className={`tabular text-lg font-semibold ${sol < 0 ? 'text-red-600' : ''}`}>{signed(sol, cur)}</p></div>
+                <div className="rounded-2xl bg-sun-100 p-4"><p className="text-xs">Report du mois précédent</p><p className={`tabular text-lg font-semibold ${report < 0 ? 'text-red-600' : ''}`}>{signed(report, cur)}</p></div>
                 <div className="rounded-2xl bg-cream-tile p-4"><p className="text-xs text-ink-muted">Part épargnée</p><p className="tabular text-lg font-semibold">{rate == null ? '—' : `${rate} %`}</p></div>
               </div>
 
@@ -125,24 +128,25 @@ export default function GraphiquesScreen() {
 
               {depAll.rows.length > 0 && (
                 <section className="tile p-4">
-                  <h3 className="mb-1 font-semibold">Où va l'argent</h3>
+                  <h3 className="mb-1 font-semibold">Où va l'argent <span className="text-xs font-normal text-ink-muted">· touche une catégorie pour le détail</span></h3>
                   <div className="flex items-center gap-2">
                     <div className="h-[9.375rem] w-[9.375rem] shrink-0">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie data={depAll.rows} dataKey="value" innerRadius={44} outerRadius={70} paddingAngle={2} stroke="none" isAnimationActive={false}>
-                            {depAll.rows.map((r) => <Cell key={r.id} fill={r.color} />)}
+                            {depAll.rows.map((r) => <Cell key={r.id} fill={r.color} className="cursor-pointer" onClick={() => r.id && openCatHistory(r.id, 'depense')} />)}
                           </Pie>
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
                     <div className="min-w-0 flex-1 space-y-1.5 text-sm">
-                      {depAll.rows.slice(0, 5).map((r) => (
-                        <div key={r.id} className="flex items-center gap-2">
+                      {depAll.rows.slice(0, 6).map((r) => (
+                        <button key={r.id} disabled={!r.id} onClick={() => openCatHistory(r.id, 'depense')} className="flex w-full items-center gap-2 rounded-lg py-0.5 text-left hover:bg-white">
                           <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: r.color }} />
                           <span className="min-w-0 flex-1 truncate">{r.name}</span>
                           <span className="tabular text-ink-muted">{Math.round(r.pct)}%</span>
-                        </div>
+                          <ChevronRight size={14} className="shrink-0 text-ink-muted" />
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -153,7 +157,7 @@ export default function GraphiquesScreen() {
                 <section className="tile p-4">
                   <h3 className="mb-2 font-semibold">D'où vient l'argent</h3>
                   {revAll.rows.map((r) => (
-                    <div key={r.id} className="flex items-center justify-between py-1 text-sm"><span className="flex items-center gap-2"><BareIcon name={r.name} emoji={r.icon} size={18} />{r.name}</span><span className="tabular font-medium">{fmt(r.value, cur)}</span></div>
+                    <button key={r.id} disabled={!r.id} onClick={() => openCatHistory(r.id, 'revenu')} className="flex w-full items-center justify-between py-1 text-left text-sm"><span className="flex items-center gap-2"><BareIcon name={r.name} emoji={r.icon} size={18} />{r.name}</span><span className="flex items-center gap-1 tabular font-medium">{fmt(r.value, cur)}<ChevronRight size={14} className="text-ink-muted" /></span></button>
                   ))}
                 </section>
               )}
@@ -224,11 +228,11 @@ export default function GraphiquesScreen() {
                   {biggest.map((t) => {
                     const c = t.category_id ? catById.get(t.category_id) : undefined
                     return (
-                      <div key={t.id} className="flex items-center gap-3 border-b border-neutral-100 py-2.5 last:border-0">
+                      <button key={t.id} onClick={() => openTx(t)} className="flex w-full items-center gap-3 border-b border-neutral-100 py-2.5 text-left last:border-0">
                         <IconTile name={c?.name ?? ''} emoji={c?.icon} size={36} />
                         <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{c?.name ?? 'Sans catégorie'}</p><p className="truncate text-xs text-ink-muted">{t.occurred_on.slice(8)}/{t.occurred_on.slice(5, 7)}{t.note ? ` · ${t.note}` : ''}</p></div>
                         <span className="tabular text-sm font-semibold">{fmt(t.amount, cur)}</span>
-                      </div>
+                      </button>
                     )
                   })}
                 </section>
@@ -247,7 +251,7 @@ export default function GraphiquesScreen() {
                   <ResponsiveContainer width="100%" height={240}>
                     <PieChart>
                       <Pie data={byCat.rows} dataKey="value" nameKey="name" innerRadius={70} outerRadius={105} paddingAngle={2} stroke="none" isAnimationActive={false}>
-                        {byCat.rows.map((r) => <Cell key={r.id} fill={r.color} />)}
+                        {byCat.rows.map((r) => <Cell key={r.id} fill={r.color} className="cursor-pointer" onClick={() => r.id && openCatHistory(r.id, kind)} />)}
                       </Pie>
                       <Tooltip formatter={(v) => fmt(Number(v), cur)} />
                     </PieChart>
@@ -260,10 +264,10 @@ export default function GraphiquesScreen() {
                 <div className="card divide-y divide-neutral-100">
                   {byCat.rows.map((r) => (
                     <div key={r.id}>
-                      <button onClick={() => setOpen(open === r.id ? null : r.id)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+                      <button onClick={() => (r.id ? openCatHistory(r.id, kind) : setOpen(open === r.id ? null : r.id))} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
                         <IconTile name={r.name} emoji={r.icon} color={r.color} size={40} />
                         <div className="flex-1">
-                          <div className="flex justify-between text-sm"><span className="font-medium">{r.name}{r.subs.length > 1 ? <span className="ml-1 text-ink-muted">{open === r.id ? '▾' : '▸'}</span> : null}</span><span className="tabular font-semibold">{fmt(r.value, cur)}</span></div>
+                          <div className="flex justify-between text-sm"><span className="flex items-center gap-1 font-medium">{r.name}<ChevronRight size={14} className="text-ink-muted" /></span><span className="tabular font-semibold">{fmt(r.value, cur)}</span></div>
                           <div className="mt-1 flex items-center gap-2">
                             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-100"><div className="h-full rounded-full" style={{ width: `${r.pct}%`, background: r.color }} /></div>
                             <span className="w-11 text-right text-xs text-neutral-400">{r.pct.toFixed(1)}%</span>

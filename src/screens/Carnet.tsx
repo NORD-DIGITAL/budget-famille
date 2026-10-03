@@ -84,7 +84,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
   return (
     <div className="bg-white lg:grid lg:grid-cols-[400px_1fr] lg:items-start lg:gap-2 lg:p-4 xl:grid-cols-[440px_1fr] 2xl:grid-cols-[440px_1fr_380px] 2xl:gap-4">
-      <div className="hero pb-8 lg:sticky lg:top-4 lg:overflow-hidden lg:rounded-[28px] lg:pb-2">
+      <div className="hero pb-8 lg:[@media(min-height:860px)]:sticky lg:top-4 lg:overflow-hidden lg:rounded-[28px] lg:pb-2">
       {/* En-tête : salutation */}
       <header className="pt-safe px-5">
         <div className="flex items-center gap-3 py-4">
@@ -127,7 +127,6 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
                 {hidden ? <Eye size={24} strokeWidth={1.8} /> : <EyeOff size={24} strokeWidth={1.8} />}
               </button>
             </div>
-            <div className="mx-auto mt-1 flex w-fit flex-wrap justify-center gap-x-4 text-sm"><span className="hero-muted">Report du mois précédent : <b className="tabular font-medium">{mask(signed(report, cur))}</b></span><span className="hero-muted">Ce mois : <b className="tabular font-medium">{mask(signed(inc - exp, cur))}</b></span></div>
             {!hidden && solde < LOW && <p className="mx-auto mt-1 w-fit rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-700">Solde bas : moins de {fmt(LOW, cur)}</p>}
             <div className="mx-auto mt-4 max-w-xs text-ink"><MonthBar /></div>
             <div className="mt-4 grid grid-cols-2 gap-3 text-ink">
@@ -149,7 +148,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
               <span className="min-w-0 flex-1 text-sm"><b>Épargne du mois à faire</b><br /><span className="text-ink-muted">{due.map((g) => `${g.name} (le ${g.monthly_day}${g.monthly_amount ? `, ${fmt(g.monthly_amount, cur)}` : ''})`).join(' · ')}</span></span>
             </button>
           )}
-          <section className="grid grid-cols-4 gap-y-5 px-3 pb-6 pt-6">
+          <section className="grid grid-cols-4 gap-y-5 px-3 pb-6 pt-6 md:grid-cols-8 lg:grid-cols-4">
             {shortcuts.map(({ label, Icon, run }) => (
               <button key={label} onClick={run} className="flex flex-col items-center gap-2 text-center">
                 <Icon size={30} strokeWidth={1.5} />

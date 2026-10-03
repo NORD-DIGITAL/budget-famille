@@ -9,6 +9,9 @@ import { ByNord, Header, Sheet, Wordmark } from './components/ui'
 import { CarnetSwitcher } from './components/Carnets'
 import { applyTheme, themeForCarnet, useUserTheme } from './lib/theme'
 import TxForm from './components/TxForm'
+import { TxDetailHost, openTx } from './components/TxDetail'
+import { runBack } from './lib/back'
+import { App as CapApp } from '@capacitor/app'
 import { AuthScreen, Brand, OnboardingScreen } from './screens/Auth'
 import AccueilScreen from './screens/Carnet'
 import PortefeuilleScreen from './screens/Portefeuille'
@@ -162,6 +165,24 @@ function Shell() {
     await Promise.all([loadCarnet(), reloadProfile()])
     await reload()
   }, [loadCarnet, reloadProfile, reload])
+  // Bouton retour du téléphone : ferme la fenêtre ouverte, puis la page, puis revient à l'accueil
+  const nav = useRef({ sub, tab, closeSub })
+  nav.current = { sub, tab, closeSub }
+  const [exitHint, setExitHint] = useState(false)
+  const lastBack = useRef(0)
+  useEffect(() => {
+    if (!isNative) return
+    const h = CapApp.addListener('backButton', () => {
+      if (runBack()) return
+      const n = nav.current
+      if (n.sub) return n.closeSub()
+      if (n.tab !== 'accueil') return setTab('accueil')
+      const now = Date.now()
+      if (now - lastBack.current < 2000) { CapApp.exitApp(); return }
+      lastBack.current = now; setExitHint(true); setTimeout(() => setExitHint(false), 2000)
+    })
+    return () => { h.then((x) => x.remove()) }
+  }, [])
   const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   const { pull, spinning } = usePullToRefresh(refreshAll, !!session && !locked && isTouch)
 
@@ -211,7 +232,7 @@ function Shell() {
       )}
 
       {/* Barre latérale (ordinateur) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col bg-ink p-5 text-white lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col overflow-y-auto overscroll-contain bg-ink p-5 text-white lg:flex">
         <div className="mb-8 flex items-center gap-3 px-2">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-sun-500 text-ink"><Wallet size={24} /></div>
           <Wordmark className="text-xl" dark />
@@ -227,7 +248,7 @@ function Shell() {
           <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
           <SideLink active={sub === 'courses'} onClick={() => openSub('courses')} Icon={ShoppingCart} label="Faire les courses" />
         </nav>
-        <div className="mt-auto space-y-2">
+        <div className="mt-auto space-y-2 pt-6">
           <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
           {isAdmin && <SideLink active={sub === 'users'} onClick={() => openSub('users')} Icon={UsersRound} label="Utilisateurs" />}
           <SideLink active={sub === 'inbox'} onClick={() => openSub('inbox')} Icon={Inbox} label="Boîte de réception" badge={inboxN} />
@@ -242,7 +263,7 @@ function Shell() {
         </div>
       </aside>
 
-      <main className="mx-auto min-h-full max-w-lg bg-white pb-28 lg:mx-6 lg:my-6 lg:max-w-none lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm 2xl:mx-10">
+      <main className="mx-auto min-h-full max-w-lg bg-white pb-28 md:max-w-none lg:mx-6 lg:my-6 lg:max-w-none lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm 2xl:mx-10">
         {sub ? (
           <div className="lg:mx-auto lg:max-w-3xl">
             <Header title={SUB_TITLES[sub]} onBack={closeSub} />
@@ -268,7 +289,7 @@ function Shell() {
               </button>
             )}
             {tab === 'accueil' && (
-              <AccueilScreen onEdit={(t) => openForm(t)} onAdd={(k) => openForm(null, k)} openSub={openSub} onRefresh={refreshAll}
+              <AccueilScreen onEdit={(t) => openTx(t)} onAdd={(k) => openForm(null, k)} openSub={openSub} onRefresh={refreshAll}
                 goCharts={() => setTab('graphiques')} openAll={() => setAllOpen(true)} />
             )}
             {tab === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
@@ -280,7 +301,7 @@ function Shell() {
 
       {!sub && (
         <nav className="pb-safe fixed inset-x-0 bottom-0 z-30 bg-ink lg:hidden">
-          <div className="relative mx-auto flex max-w-lg items-end px-1">
+          <div className="relative mx-auto flex max-w-lg items-end px-1 md:max-w-2xl">
             <NavBtn {...tabs[0]} />
             <NavBtn {...tabs[1]} />
             <div className="flex flex-1 justify-center">
@@ -295,6 +316,8 @@ function Shell() {
         </nav>
       )}
 
+      {exitHint && <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[60] flex justify-center"><span className="rounded-full bg-ink px-4 py-2 text-sm text-white shadow-lg">Appuie encore sur retour pour quitter</span></div>}
+      <TxDetailHost onEdit={(t) => openForm(t)} />
       <TxForm open={formOpen} onClose={() => setFormOpen(false)} tx={editing} initialKind={formKind} />
       <AllSheet open={allOpen} onClose={() => setAllOpen(false)} onAdd={(k) => openForm(null, k)} openSub={openSub} goCharts={() => setTab('graphiques')} />
 

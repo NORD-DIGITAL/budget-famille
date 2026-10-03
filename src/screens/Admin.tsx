@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Mail, Ban, Check, Copy, KeyRound, Search, Share2, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
+import { useBackHandler } from '../lib/back'
 import { Empty } from '../components/ui'
 import { daysLeft, fmtDay, planLabel, PLANS } from './GoCode'
 import { ComposeMessage } from './Feedback'
@@ -67,6 +68,7 @@ export function UsersPage() {
 }
 
 function UserDetail({ user, onBack }: { user: AdminUser; onBack: () => void }) {
+  useBackHandler(true, onBack)
   const [codes, setCodes] = useState<GoCodeRow[]>([])
   const [fresh, setFresh] = useState<{ code: string; days: number } | null>(null)
   const [copied, setCopied] = useState(false)

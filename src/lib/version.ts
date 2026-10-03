@@ -3,11 +3,13 @@ import { Capacitor } from '@capacitor/core'
 import { supabase } from './supabase'
 
 /**
- * Numéro de version de l'application (à augmenter à chaque mise à jour publiée).
- * Règle NORD DIGITAL : si APP_VERSION < min_version (table app_config), l'application est bloquée.
+ * Version au format X.Y.Z (règle NORD DIGITAL) :
+ *   X = refonte majeure, Y = nouvelles fonctions, Z = corrections.
+ * APP_VERSION = X*10000 + Y*100 + Z (sert à comparer avec min_version / latest_version de app_config).
+ * Si APP_VERSION < min_version, l'application est bloquée.
  */
-export const APP_VERSION = 33
-export const APP_LABEL = '3.3'
+export const APP_LABEL = '3.4.0'
+export const APP_VERSION = APP_LABEL.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0)
 export const isNative = Capacitor.isNativePlatform()
 export const OLD_VERSION_MSG = "Vous utilisez l'ancienne version de Budget.Go.Family, merci de contacter Nord Digital svp."
 

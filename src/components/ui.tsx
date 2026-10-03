@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home, Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X, Cog, Sofa, PaintRoller, Lamp, SprayCan, WashingMachine, Plug } from 'lucide-react'
 import { Hand, Palette, Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useBackHandler } from '../lib/back'
 import type { LucideIcon } from 'lucide-react'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
@@ -93,10 +94,11 @@ export function Header({ title, onBack, right }: { title: string; onBack?: () =>
 
 /* ---------- Feuille du bas, fermée par la croix ronde ---------- */
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
+  useBackHandler(open, onClose)
   if (!open) return null
   return (
-    <div data-sheet className="fixed inset-0 z-50 flex flex-col items-center justify-end bg-black/45 px-3 pt-10 lg:justify-center" onClick={onClose}>
-      <div className="flex max-h-[82vh] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white text-ink" onClick={(e) => e.stopPropagation()}>
+    <div data-sheet className="fixed inset-0 z-50 flex flex-col items-center justify-end bg-black/45 px-3 pt-4 lg:justify-center" onClick={onClose}>
+      <div className="flex max-h-[calc(100dvh-6.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white text-ink" onClick={(e) => e.stopPropagation()}>
         {title && <h2 className="px-6 pb-1 pt-6 text-xl font-semibold">{title}</h2>}
         <div className="overflow-y-auto px-6 pb-6 pt-3">{children}</div>
       </div>
