@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { monthKey } from './format'
-import type { Account, Budget, Recurring, Carnet, Category, Child, Debt, DebtPayment, Goal, Member, Profile, SavingsMove, ShoppingItem, ShoppingList, Tx } from './types'
+import type { Account, Budget, Recurring, RecurringDue, Carnet, Category, Child, Debt, DebtPayment, Goal, Member, Profile, SavingsMove, ShoppingItem, ShoppingList, Tx } from './types'
 
 const CARNET_KEY = 'bf-carnet'
 const readSel = () => { try { return localStorage.getItem(CARNET_KEY) } catch { return null } }
@@ -26,7 +26,7 @@ interface DataCtx {
   txs: Tx[]
   budgets: Budget[]
   recurring: Recurring[]
-  recurringDue: Recurring[]
+  recurringDue: RecurringDue[]
   goals: Goal[]
   debts: Debt[]
   moves: SavingsMove[]
@@ -69,7 +69,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [txs, setTxs] = useState<Tx[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   const [recurring, setRecurring] = useState<Recurring[]>([])
-  const [recurringDue, setRecurringDue] = useState<Recurring[]>([])
+  const [recurringDue, setRecurringDue] = useState<RecurringDue[]>([])
   const [goals, setGoals] = useState<Goal[]>([])
   const [debts, setDebts] = useState<Debt[]>([])
   const [moves, setMoves] = useState<SavingsMove[]>([])
@@ -144,10 +144,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       all<DebtPayment>('debt_payments', 'id,debt_id,amount,method,ref,note,paid_on', 'paid_on', false),
       all<ShoppingList>('shopping_lists', 'id,name,status,account_id,member_id,created_at,validated_at,finished_at,planned_on', 'created_at', false),
       all<ShoppingItem>('shopping_items', 'id,list_id,category_id,label,quantity,unit,est_price,final_price,taken,cancelled,position', 'position'),
-      all<Recurring>('recurring_expenses', 'id,label,amount,category_id,account_id,member_id,day_of_month,mode,active,last_month', 'day_of_month'),
-      supabase.rpc('recurring_due', { c }),
+      all<Recurring>('recurring_expenses', 'id,label,amount,category_id,account_id,member_id,day_of_month,mode,active,last_month,start_month,start_on', 'day_of_month'),
+      supabase.rpc('recurring_pending', { c }),
     ])
-    setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d); setMoves(mv); setPayments(pay); setLists(sl); setItems(si); setRecurring(rc); setRecurringDue(((rd.data ?? []) as Recurring[]).filter((r) => r.mode === 'valider'))
+    setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d); setMoves(mv); setPayments(pay); setLists(sl); setItems(si); setRecurring(rc); setRecurringDue(((rd.data ?? []) as RecurringDue[]).filter((r) => r.mode === 'valider'))
     // Enfants déclarés dans les profils des personnes de ce carnet
     const ids = (cu.data ?? []).map((r: { user_id: string }) => r.user_id)
     if (ids.length) {

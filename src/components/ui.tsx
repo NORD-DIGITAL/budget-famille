@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home, Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X, Cog, Sofa, PaintRoller, Lamp, SprayCan, WashingMachine, Plug } from 'lucide-react'
+import { ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home, Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X, Cog, Sofa, PaintRoller, Lamp, SprayCan, WashingMachine, Plug, Armchair, Bed, UsersRound, HouseHeart } from 'lucide-react'
 import { Hand, Palette, Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useBackHandler } from '../lib/back'
@@ -8,7 +8,7 @@ import type { LucideIcon } from 'lucide-react'
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
   [/v[ée]hicule|voiture|moto\b/i, Car], [/carburant|essence|gasoil/i, Fuel], [/pi[èe]ce/i, Cog], [/r[ée]paration/i, Wrench],
-  [/^maison|meuble/i, Sofa], [/r[ée]novation/i, Hammer], [/peinture/i, PaintRoller], [/d[ée]coration/i, Lamp], [/entretien/i, SprayCan],
+  [/^maison|meuble|canap|fauteuil/i, Sofa], [/\blit\b|matelas/i, Bed], [/r[ée]novation/i, Hammer], [/peinture/i, PaintRoller], [/d[ée]coration/i, Lamp], [/entretien/i, SprayCan],
   [/[ée]lectrom[ée]nager/i, WashingMachine], [/[ée]lectronique/i, Plug], [/^t[ée]l[ée]phone$/i, Smartphone], [/^achat$/i, ShoppingBag],
   [/beaut/i, Sparkles], [/coiffure|^taly|brushing/i, Scissors], [/maquillage/i, Palette], [/manucure|manicure/i, Hand],
   [/connectivit/i, Wifi], [/data mobile/i, Signal], [/wi-?fi/i, Wifi], [/cr[ée]dit t[ée]l/i, Smartphone], [/petit d[ée]j/i, Coffee],
@@ -23,7 +23,7 @@ const ICONS: [RegExp, LucideIcon][] = [
   [/aliment|nourrit|march/i, ShoppingBasket], [/transport|taxi|carbur/i, Bus], [/logement|loyer|maison/i, Home],
   [/jirama|electri|eau/i, Lightbulb], [/quotidien|course/i, ShoppingBag], [/sant|m[ée]dic|pharma/i, HeartPulse],
   [/[ée]cole|scolar|[ée]tude/i, GraduationCap], [/loisir|sortie|film/i, Clapperboard], [/social|f[êe]te|c[ée]r[ée]monie/i, PartyPopper],
-  [/cr[ée]dit|t[ée]l[ée]phone|forfait/i, Wifi], [/famille|enfant|b[ée]b[ée]/i, Baby], [/salaire/i, Briefcase], [/prime|cadeau|don/i, Gift],
+  [/cr[ée]dit|t[ée]l[ée]phone|forfait/i, Wifi], [/^famille$/i, UsersRound], [/famille|enfant|b[ée]b[ée]/i, Baby], [/salaire/i, Briefcase], [/prime|cadeau|don/i, Gift],
   [/business|vente|commerce/i, Store], [/autre revenu/i, PlusCircle], [/esp[èe]ce|cash/i, Banknote], [/mvola|orange|airtel|money/i, Smartphone],
   [/banque/i, Landmark], [/[ée]pargne/i, PiggyBank], [/portefeuille/i, Wallet], [/^autres?\b/i, Ellipsis],
 ]
@@ -39,6 +39,7 @@ export const ICON_SET: Record<string, LucideIcon> = {
   CupSoda, Wine, CakeSlice, Bus, Car, Bike, Fuel, Home, Lightbulb, Droplet, Flame, Wifi, Smartphone, HeartPulse, Pill, Baby, GraduationCap,
   School, BookOpen, PencilRuler, Dumbbell, Shirt, Scissors, Gift, PartyPopper, Church, Film, Gamepad2, Music, Laptop, Sparkles, Plane, Wrench,
   Hammer, PawPrint, Tractor, Store, Briefcase, Banknote, PiggyBank, HandCoins, Landmark, Users, Heart, Ticket, Package, Ellipsis,
+  Sofa, Armchair, Bed, Lamp, UsersRound, HouseHeart, Plug, WashingMachine, PaintRoller, SprayCan, Cog,
 }
 
 /** Vrai quand le clavier du téléphone est ouvert (la zone visible rétrécit). */
@@ -93,11 +94,15 @@ export function Header({ title, onBack, right }: { title: string; onBack?: () =>
 }
 
 /* ---------- Feuille du bas, fermée par la croix ronde ---------- */
+let sheetSeq = 0
 export function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () => void; title?: string; children: ReactNode }) {
   useBackHandler(open, onClose)
+  // La dernière fenêtre ouverte passe toujours au-dessus des autres
+  const [z, setZ] = useState(50)
+  useEffect(() => { if (open) setZ(50 + ++sheetSeq) }, [open])
   if (!open) return null
   return (
-    <div data-sheet className="fixed inset-0 z-50 flex flex-col items-center justify-end bg-black/45 px-3 pt-4 lg:justify-center" onClick={onClose}>
+    <div data-sheet style={{ zIndex: z }} className="fixed inset-0 flex flex-col items-center justify-end bg-black/45 px-3 pt-4 lg:justify-center" onClick={onClose}>
       <div className="flex max-h-[calc(100dvh-6.5rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white text-ink" onClick={(e) => e.stopPropagation()}>
         {title && <h2 className="px-6 pb-1 pt-6 text-xl font-semibold">{title}</h2>}
         <div className="overflow-y-auto px-6 pb-6 pt-3">{children}</div>

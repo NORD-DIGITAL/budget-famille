@@ -7,7 +7,10 @@ import { deleteEntityPhotos, uploadPhoto } from '../lib/attachments'
 import type { Debt, Goal, GoalKind } from '../lib/types'
 import { Empty, ICON_SET, IconTile, Progress, Segmented, Sheet } from '../components/ui'
 import { DateField } from '../components/DatePicker'
-import { isMobileMoney, MethodPicker, methodLabel, PhotoPicker, PhotoStrip, RefField } from '../components/Money'
+import { isMobileMoney, MethodPicker, PhotoPicker, RefField } from '../components/Money'
+import { MoveHistory } from '../components/MoveHistory'
+import type { HPatch, HRow } from '../components/MoveHistory'
+import { Pencil } from 'lucide-react'
 
 /* ---------------------------------------------------------------- Épargne */
 
@@ -137,7 +140,7 @@ export function GoalsPage() {
           const n = moves.filter((m) => m.goal_id === g.id).length
           return (
             <div key={g.id} className="tile p-4">
-              <button onClick={() => openEdit(g)} className="mb-3 flex w-full items-center gap-3 text-left">
+              <button onClick={() => setDetail(g)} className="mb-3 flex w-full items-center gap-3 text-left">
                 <IconTile name={g.name} emoji={g.icon} size={48} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{g.name}</p>
@@ -251,45 +254,44 @@ export function GoalsPage() {
         )}
       </Sheet>
 
-      {/* Historique + photos */}
-      <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail?.name}>
-        {detail && <History carnetId={carnet!.id} entity="goal" id={detail.id} rows={moves.filter((m) => m.goal_id === detail.id).map((m) => ({ id: m.id, amount: m.amount, date: m.moved_on, method: m.method, ref: m.ref, note: m.note }))}
-          onDelete={async (row) => {
-            await supabase.from('savings_moves').delete().eq('id', row.id)
-            await supabase.from('savings_goals').update({ saved_amount: Math.max(0, detail.saved_amount - row.amount) }).eq('id', detail.id)
-            await reload(); setDetail({ ...detail, saved_amount: Math.max(0, detail.saved_amount - row.amount) })
-          }} />}
-      </Sheet>
-    </div>
-  )
-}
-
-/* ---------------------------------------------------------------- Historique commun */
-
-type HRow = { id: string; amount: number; date: string; method: string | null; ref: string | null; note: string | null }
-
-function History({ carnetId, entity, id, rows, onDelete }: { carnetId: string; entity: 'goal' | 'debt'; id: string; rows: HRow[]; onDelete: (r: HRow) => Promise<void> }) {
-  const { cur } = useData()
-  const [confirm, setConfirm] = useState<string | null>(null)
-  return (
-    <div className="space-y-6">
-      <div>
-        <p className="mb-1 font-semibold">Historique</p>
-        {rows.length === 0 && <p className="text-sm text-ink-muted">Aucun mouvement enregistré pour l'instant.</p>}
-        {rows.map((r) => (
-          <div key={r.id} className="flex items-center gap-3 border-b border-neutral-100 py-2.5 last:border-0">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{new Date(r.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-              <p className="truncate text-xs text-ink-muted">{[methodLabel(r.method), r.ref ? `Réf. ${r.ref}` : null, r.note].filter(Boolean).join(' · ')}</p>
-            </div>
-            <span className={`tabular text-sm font-semibold ${r.amount < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{r.amount < 0 ? '−' : '+'}{fmt(Math.abs(r.amount), cur)}</span>
-            <button onClick={async () => { if (confirm !== r.id) return setConfirm(r.id); await onDelete(r); setConfirm(null) }} aria-label="Supprimer ce mouvement"
-              className={`rounded-full p-2 ${confirm === r.id ? 'bg-red-500 text-white' : 'text-neutral-400'}`}><Trash2 size={16} /></button>
-          </div>
-        ))}
-        {confirm && <p className="mt-1 text-xs text-red-600">Touche encore la corbeille pour confirmer.</p>}
-      </div>
-      <PhotoStrip carnetId={carnetId} entity={entity} entityId={id} refreshKey={rows.length} />
+      {/* Fiche de l'épargne : résumé, historique, chaque mouvement a sa fiche */}
+      {(() => {
+        const g = detail ? goals.find((x) => x.id === detail.id) ?? detail : null
+        return (
+          <Sheet open={!!g} onClose={() => setDetail(null)} title={g?.name}>
+            {g && (
+              <div className="space-y-5">
+                <div className="rounded-3xl bg-cream-tile p-4">
+                  <div className="flex items-center gap-3">
+                    <IconTile name={g.name} emoji={g.icon} size={48} />
+                    <div className="min-w-0 flex-1"><p className="text-xs text-ink-muted">{[GOAL_KINDS.find((x) => x.k === g.kind)?.label, supportLabel(g)].filter(Boolean).join(' · ')}</p>
+                      <p className="tabular text-2xl font-bold">{fmt(g.saved_amount, cur)}</p>{g.target_amount ? <p className="tabular text-xs text-ink-muted">sur {fmt(g.target_amount, cur)}</p> : null}</div>
+                  </div>
+                  {g.target_amount ? <div className="mt-3"><Progress value={g.saved_amount} max={g.target_amount} /></div> : null}
+                  <div className="mt-3 flex gap-2">
+                    <button onClick={() => openMove(g, 1)} className="btn-primary flex-1 py-2 text-sm">+ Épargner</button>
+                    <button onClick={() => openMove(g, -1)} className="btn-ghost bg-white py-2 text-sm">Retirer</button>
+                    <button onClick={() => openEdit(g)} className="btn-ghost bg-white px-3 py-2 text-sm" aria-label="Modifier l'épargne"><Pencil size={16} /></button>
+                  </div>
+                </div>
+                <MoveHistory carnetId={carnet!.id} entity="goal" entityId={g.id} title="Historique des mouvements" labels={{ plus: 'Versement', minus: 'Retrait' }}
+                  rows={moves.filter((m) => m.goal_id === g.id).map((m): HRow => ({ id: m.id, amount: m.amount, date: m.moved_on, method: m.method, ref: m.ref, note: m.note }))}
+                  onDelete={async (row) => {
+                    await supabase.from('savings_moves').delete().eq('id', row.id)
+                    await supabase.from('savings_goals').update({ saved_amount: Math.max(0, g.saved_amount - row.amount) }).eq('id', g.id)
+                    await reload()
+                  }}
+                  onUpdate={async (row, p: HPatch) => {
+                    const { error } = await supabase.from('savings_moves').update({ amount: p.amount, moved_on: p.date, method: p.method, ref: p.ref, note: p.note }).eq('id', row.id)
+                    if (error) return error.message
+                    await supabase.from('savings_goals').update({ saved_amount: Math.max(0, g.saved_amount + p.amount - row.amount) }).eq('id', g.id)
+                    await reload(); return null
+                  }} />
+              </div>
+            )}
+          </Sheet>
+        )
+      })()}
     </div>
   )
 }
@@ -359,7 +361,7 @@ export function DebtsPage() {
 
   const Card = ({ d }: { d: Debt }) => (
     <div className="tile p-4">
-      <button onClick={() => openEdit(d)} className="mb-3 flex w-full items-center gap-3 text-left">
+      <button onClick={() => setDetail(d)} className="mb-3 flex w-full items-center gap-3 text-left">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink font-semibold text-white">{d.person.charAt(0).toUpperCase()}</div>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{d.person}</p>
@@ -377,7 +379,7 @@ export function DebtsPage() {
             {d.direction === 'je_dois' ? '+ Remboursement' : '+ Paiement reçu'}
           </button>
         )}
-        <button onClick={() => setDetail(d)} className="btn-ghost flex-1 bg-white py-2.5 text-sm"><Paperclip size={16} /> Historique ({countPay.get(d.id) ?? 0})</button>
+        <button onClick={() => setDetail(d)} className="btn-ghost flex-1 bg-white py-2.5 text-sm"><Paperclip size={16} /> Fiche et historique ({countPay.get(d.id) ?? 0})</button>
       </div>
     </div>
   )
@@ -430,14 +432,44 @@ export function DebtsPage() {
         )}
       </Sheet>
 
-      <Sheet open={!!detail} onClose={() => setDetail(null)} title={detail ? `${detail.person} · ${fmt(leftOf(detail), cur)} restant` : ''}>
-        {detail && <History carnetId={carnet!.id} entity="debt" id={detail.id} rows={payments.filter((p) => p.debt_id === detail.id).map((p) => ({ id: p.id, amount: p.amount, date: p.paid_on, method: p.method, ref: p.ref, note: p.note }))}
-          onDelete={async (row) => {
-            await supabase.from('debt_payments').delete().eq('id', row.id)
-            await supabase.from('debts').update({ paid: Math.max(0, detail.paid - row.amount) }).eq('id', detail.id)
-            await reload(); setDetail({ ...detail, paid: Math.max(0, detail.paid - row.amount) })
-          }} />}
-      </Sheet>
+      {(() => {
+        const d = detail ? debts.find((x) => x.id === detail.id) ?? detail : null
+        return (
+          <Sheet open={!!d} onClose={() => setDetail(null)} title={d ? d.person : ''}>
+            {d && (
+              <div className="space-y-5">
+                <div className="rounded-3xl bg-cream-tile p-4">
+                  <p className="text-xs text-ink-muted">{d.direction === 'je_dois' ? 'Je dois' : 'On me doit'}{d.due_date ? ` · échéance ${new Date(d.due_date + 'T00:00:00').toLocaleDateString('fr-FR')}` : ''}{d.note ? ` · ${d.note}` : ''}</p>
+                  <div className="mt-1 grid grid-cols-3 gap-2 text-center">
+                    <div className="rounded-2xl bg-white p-2"><p className="text-[0.6875rem] text-ink-muted">Total</p><p className="tabular whitespace-nowrap text-sm font-semibold">{fmt(d.amount, cur)}</p></div>
+                    <div className="rounded-2xl bg-white p-2"><p className="text-[0.6875rem] text-ink-muted">{d.direction === 'je_dois' ? 'Remboursé' : 'Reçu'}</p><p className="tabular text-sm font-semibold text-emerald-600">{fmt(d.paid, cur)}</p></div>
+                    <div className="rounded-2xl bg-white p-2"><p className="text-[0.6875rem] text-ink-muted">Reste</p><p className="tabular text-sm font-semibold text-red-600">{fmt(leftOf(d), cur)}</p></div>
+                  </div>
+                  <div className="mt-3"><Progress value={d.paid} max={d.amount} color={d.paid >= d.amount ? '#10B981' : undefined} /></div>
+                  <div className="mt-3 flex gap-2">
+                    {d.paid < d.amount && <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), method: 'especes', ref: '', note: '', files: [] }) }} className="btn-primary flex-1 whitespace-nowrap py-2 text-sm">{d.direction === 'je_dois' ? '+ Remboursement' : '+ Paiement reçu'}</button>}
+                    <button onClick={() => openEdit(d)} className="btn-ghost flex-1 bg-white py-2 text-sm"><Pencil size={16} /> Modifier</button>
+                  </div>
+                </div>
+                <MoveHistory carnetId={carnet!.id} entity="debt" entityId={d.id} title={d.direction === 'je_dois' ? 'Historique des remboursements' : 'Historique des paiements reçus'}
+                  labels={{ plus: d.direction === 'je_dois' ? 'Remboursement' : 'Paiement reçu', minus: 'Correction' }}
+                  rows={payments.filter((p) => p.debt_id === d.id).map((p): HRow => ({ id: p.id, amount: p.amount, date: p.paid_on, method: p.method, ref: p.ref, note: p.note }))}
+                  onDelete={async (row) => {
+                    await supabase.from('debt_payments').delete().eq('id', row.id)
+                    await supabase.from('debts').update({ paid: Math.max(0, d.paid - row.amount) }).eq('id', d.id)
+                    await reload()
+                  }}
+                  onUpdate={async (row, p: HPatch) => {
+                    const { error } = await supabase.from('debt_payments').update({ amount: p.amount, paid_on: p.date, method: p.method, ref: p.ref, note: p.note }).eq('id', row.id)
+                    if (error) return error.message
+                    await supabase.from('debts').update({ paid: Math.min(d.amount, Math.max(0, d.paid + p.amount - row.amount)) }).eq('id', d.id)
+                    await reload(); return null
+                  }} />
+              </div>
+            )}
+          </Sheet>
+        )
+      })()}
     </div>
   )
 }

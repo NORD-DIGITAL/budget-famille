@@ -91,7 +91,7 @@ export function PhotoStrip({ carnetId, entity, entityId, refreshKey = 0 }: { car
       <p className="mt-2 text-xs text-ink-muted">Les photos sont réduites automatiquement (~150 Ko) et visibles seulement par les personnes du carnet.</p>
 
       {view && (
-        <div data-sheet className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-black/90 p-4" onClick={() => setView(null)}>
+        <div data-sheet className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-black/90 p-4" onClick={() => setView(null)}>
           <img src={view.url} alt="Pièce jointe" className="max-h-[75vh] max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
           <div className="mt-4 flex gap-3" onClick={(e) => e.stopPropagation()}>
             <button onClick={async () => { if (!confirm) return setConfirm(true); await deletePhoto(view); setView(null); load() }}

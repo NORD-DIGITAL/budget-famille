@@ -1,3 +1,5 @@
+import { openAccHistory, openMemHistory } from '../components/TxDetail'
+import { ChevronRight } from 'lucide-react'
 import { useMemo } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { useData } from '../lib/data'
@@ -60,11 +62,12 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
             {accounts.filter((a) => !a.archived).map((a) => {
               const b = balances.get(a.id) ?? 0
               return (
-                <div key={a.id} className="flex items-center gap-4 border-b border-neutral-100 py-3.5 last:border-0">
+                <button key={a.id} onClick={() => openAccHistory(a.id)} className="flex w-full items-center gap-4 border-b border-neutral-100 py-3.5 text-left last:border-0">
                   <IconTile name={a.name} emoji={a.icon} />
                   <span className="flex-1 text-[1.0625rem]">{a.name}</span>
                   <span className={`tabular font-semibold ${!hidden && b < 0 ? 'text-red-600' : !hidden && b < LOW ? 'text-orange-500' : ''}`}>{mask(fmt(b, cur))}</span>
-                </div>
+                  <ChevronRight size={18} className="shrink-0 text-neutral-400" />
+                </button>
               )
             })}
             {unassigned !== 0 && (
@@ -85,7 +88,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
           </div>
           <div className="space-y-4">
             {perMember.map(({ m, exp, inc }) => (
-              <div key={m.id} className="flex items-center gap-4">
+              <button key={m.id} onClick={() => openMemHistory(m.id)} className="flex w-full items-center gap-4 text-left">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-ink font-semibold text-white">{m.name.charAt(0).toUpperCase()}</div>
                 <div className="flex-1">
                   <div className="flex justify-between">
@@ -97,7 +100,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
                     {inc > 0 && <span className="tabular text-xs text-emerald-600">{mask('+' + fmt(inc, cur))}</span>}
                   </div>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </section>

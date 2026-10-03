@@ -8,7 +8,8 @@ import { IconTile, Sheet } from './ui'
 import { fmtDateLong, fmtMonthLong } from './DatePicker'
 
 /* ---------- Petite mémoire partagée : fiche d'opération et historique de catégorie ---------- */
-type State = { tx: Tx | null; cat: { id: string; kind: Kind } | null }
+type Sel = { type: 'cat'; id: string; kind: Kind } | { type: 'acc' | 'mem'; id: string }
+type State = { tx: Tx | null; cat: Sel | null }
 let state: State = { tx: null, cat: null }
 const subs = new Set<() => void>()
 const set = (p: Partial<State>) => { state = { ...state, ...p }; subs.forEach((f) => f()) }
@@ -17,7 +18,10 @@ const useStore = () => useSyncExternalStore((f) => { subs.add(f); return () => {
 /** Ouvre la fiche détaillée d'une opération (lecture, avec Modifier / Supprimer). */
 export const openTx = (t: Tx) => set({ tx: t })
 /** Ouvre l'historique d'une catégorie (et de ses sous-catégories). */
-export const openCatHistory = (id: string, kind: Kind) => set({ cat: { id, kind } })
+export const openCatHistory = (id: string, kind: Kind) => set({ cat: { type: 'cat', id, kind } })
+/** Historique d'un compte ou d'un membre. */
+export const openAccHistory = (id: string) => set({ cat: { type: 'acc', id } })
+export const openMemHistory = (id: string) => set({ cat: { type: 'mem', id } })
 
 function Line({ label, value }: { label: string; value: string | null | undefined }) {
   if (!value) return null
@@ -91,18 +95,20 @@ function TxDetailSheet({ tx, onClose, onEdit }: { tx: Tx | null; onClose: () => 
   )
 }
 
-function CatHistorySheet({ sel, onClose }: { sel: { id: string; kind: Kind } | null; onClose: () => void }) {
-  const { txs, catById, childrenOf, month, cur, accById, catPath } = useData()
+function CatHistorySheet({ sel, onClose }: { sel: Sel | null; onClose: () => void }) {
+  const { txs, catById, childrenOf, month, cur, accById, memById, catPath } = useData()
   const [allMonths, setAllMonths] = useState(false)
   const [sub, setSub] = useState<string | null>(null)
-  const root = sel ? catById.get(sel.id) : undefined
+  const isCat = sel?.type === 'cat'
+  const root = isCat && sel ? catById.get(sel.id) : undefined
+  const title = !sel ? '' : sel.type === 'cat' ? root?.name ?? 'Historique' : sel.type === 'acc' ? `Compte ${accById.get(sel.id)?.name ?? ''}` : `Opérations de ${memById.get(sel.id)?.name ?? ''}`
   const close = () => { setAllMonths(false); setSub(null); onClose() }
 
   // Toutes les catégories de la branche
   const branch = useMemo(() => {
     const out = new Set<string>()
     const walk = (id: string) => { out.add(id); for (const ch of childrenOf.get(id) ?? []) walk(ch.id) }
-    if (sel) walk(sel.id)
+    if (sel && sel.type === 'cat') walk(sel.id)
     return out
   }, [sel, childrenOf])
   const subOf = (catId: string | null) => {
@@ -110,16 +116,20 @@ function CatHistorySheet({ sel, onClose }: { sel: { id: string; kind: Kind } | n
     while (c?.parent_id && c.parent_id !== sel?.id) c = catById.get(c.parent_id)
     return c && c.id !== sel?.id ? c.id : sel?.id ?? ''
   }
-  const base = useMemo(() => txs.filter((t) => sel && t.kind === sel.kind && t.category_id && branch.has(t.category_id) && (allMonths || t.occurred_on.startsWith(month))),
+  const base = useMemo(() => txs.filter((t) => sel && (allMonths || t.occurred_on.startsWith(month)) && (
+    sel.type === 'cat' ? t.kind === sel.kind && !!t.category_id && branch.has(t.category_id) : sel.type === 'acc' ? t.account_id === sel.id : t.member_id === sel.id)),
     [txs, sel, branch, allMonths, month])
   const subsTotals = useMemo(() => {
     const m = new Map<string, number>()
-    for (const t of base) { const k = subOf(t.category_id); m.set(k, (m.get(k) ?? 0) + t.amount) }
+    if (isCat) for (const t of base) { const k = subOf(t.category_id); m.set(k, (m.get(k) ?? 0) + t.amount) }
     return [...m.entries()].sort((a, b) => b[1] - a[1])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [base])
   const list = base.filter((t) => !sub || subOf(t.category_id) === sub)
-  const total = list.reduce((a, t) => a + t.amount, 0)
+  const signedAmt = (t: Tx) => (isCat ? t.amount : t.kind === 'revenu' ? t.amount : -t.amount)
+  const total = list.reduce((a, t) => a + signedAmt(t), 0)
+  const inc = list.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
+  const exp = list.filter((t) => t.kind === 'depense').reduce((a, t) => a + t.amount, 0)
   const groups = useMemo(() => {
     const m = new Map<string, Tx[]>()
     for (const t of list) { const k = allMonths ? t.occurred_on.slice(0, 7) : t.occurred_on; if (!m.has(k)) m.set(k, []); m.get(k)!.push(t) }
@@ -127,7 +137,7 @@ function CatHistorySheet({ sel, onClose }: { sel: { id: string; kind: Kind } | n
   }, [list, allMonths])
 
   return (
-    <Sheet open={!!sel} onClose={close} title={root?.name ?? 'Historique'}>
+    <Sheet open={!!sel} onClose={close} title={title}>
       {sel && (
         <div className="space-y-4">
           <div className="flex gap-1 rounded-full bg-neutral-100 p-1">
@@ -135,8 +145,9 @@ function CatHistorySheet({ sel, onClose }: { sel: { id: string; kind: Kind } | n
             <button onClick={() => setAllMonths(true)} className={`flex-1 rounded-full py-2 text-sm ${allMonths ? 'bg-ink text-white' : 'text-ink-muted'}`}>Tout l'historique</button>
           </div>
           <div className="rounded-2xl bg-ink p-4 text-white">
-            <p className="text-sm text-white/70">{sub ? catById.get(sub)?.name ?? '' : `Total ${sel.kind === 'depense' ? 'des dépenses' : 'des revenus'}`} · {list.length} opération{list.length > 1 ? 's' : ''}</p>
-            <p className="tabular text-2xl font-bold">{fmt(total, cur)}</p>
+            <p className="text-sm text-white/70">{sub ? catById.get(sub)?.name ?? '' : sel.type === 'cat' ? `Total ${sel.kind === 'depense' ? 'des dépenses' : 'des revenus'}` : 'Solde des opérations'} · {list.length} opération{list.length > 1 ? 's' : ''}</p>
+            <p className="tabular text-2xl font-bold">{isCat ? fmt(total, cur) : `${total > 0 ? '+' : total < 0 ? '−' : ''}${fmt(Math.abs(total), cur)}`}</p>
+            {!isCat && <p className="tabular mt-1 text-xs text-white/70">Revenus {fmt(inc, cur)} · Dépenses {fmt(exp, cur)}</p>}
           </div>
           {subsTotals.length > 1 && (
             <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1">
@@ -153,7 +164,7 @@ function CatHistorySheet({ sel, onClose }: { sel: { id: string; kind: Kind } | n
             <div key={k}>
               <p className="mb-1 flex items-center justify-between text-xs text-ink-muted">
                 <span className="flex items-center gap-1"><CalendarDays size={12} />{allMonths ? fmtMonthLong(k) : fmtDateLong(k)}</span>
-                <span className="tabular">{fmt(items.reduce((a, t) => a + t.amount, 0), cur)}</span>
+                <span className="tabular">{fmt(Math.abs(items.reduce((a, t) => a + signedAmt(t), 0)), cur)}</span>
               </p>
               {items.map((t) => {
                 const c = t.category_id ? catById.get(t.category_id) : undefined
@@ -162,9 +173,9 @@ function CatHistorySheet({ sel, onClose }: { sel: { id: string; kind: Kind } | n
                     <IconTile name={c?.name ?? ''} emoji={c?.icon} color={c?.color} size={36} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{c?.name}</p>
-                      <p className="truncate text-xs text-ink-muted">{[allMonths ? t.occurred_on.split('-').reverse().slice(0, 2).join('/') : null, catPath(t.category_id).split(' › ').slice(1, -1).join(' › ') || null, t.quantity ? `${String(t.quantity).replace('.', ',')} ${t.unit ?? ''}` : null, t.account_id ? accById.get(t.account_id)?.name : null, t.note].filter(Boolean).join(' · ')}</p>
+                      <p className="truncate text-xs text-ink-muted">{[allMonths ? t.occurred_on.split('-').reverse().slice(0, 2).join('/') : null, isCat ? catPath(t.category_id).split(' › ').slice(1, -1).join(' › ') || null : catPath(t.category_id).split(' › ')[0] || null, t.quantity ? `${String(t.quantity).replace('.', ',')} ${t.unit ?? ''}` : null, sel.type !== 'acc' && t.account_id ? accById.get(t.account_id)?.name : null, sel.type !== 'mem' && t.member_id ? memById.get(t.member_id)?.name : null, t.note].filter(Boolean).join(' · ')}</p>
                     </div>
-                    <span className="tabular shrink-0 text-sm font-semibold">{fmt(t.amount, cur)}</span>
+                    <span className={`tabular shrink-0 text-sm font-semibold ${!isCat && t.kind === 'revenu' ? 'text-emerald-600' : ''}`}>{!isCat ? (t.kind === 'revenu' ? '+' : '−') : ''}{fmt(t.amount, cur)}</span>
                   </button>
                 )
               })}

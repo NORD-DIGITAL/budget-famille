@@ -316,7 +316,7 @@ function Shell() {
         </nav>
       )}
 
-      {exitHint && <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[60] flex justify-center"><span className="rounded-full bg-ink px-4 py-2 text-sm text-white shadow-lg">Appuie encore sur retour pour quitter</span></div>}
+      {exitHint && <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[1000] flex justify-center"><span className="rounded-full bg-ink px-4 py-2 text-sm text-white shadow-lg">Appuie encore sur retour pour quitter</span></div>}
       <TxDetailHost onEdit={(t) => openForm(t)} />
       <TxForm open={formOpen} onClose={() => setFormOpen(false)} tx={editing} initialKind={formKind} />
       <AllSheet open={allOpen} onClose={() => setAllOpen(false)} onAdd={(k) => openForm(null, k)} openSub={openSub} goCharts={() => setTab('graphiques')} />
