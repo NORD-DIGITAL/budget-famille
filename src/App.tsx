@@ -26,7 +26,7 @@ import { CoursesPage } from './screens/Courses'
 import { FeedbackPage, InboxPage } from './screens/Feedback'
 import { PrivacyPage } from './screens/Privacy'
 import { useBadge, useInboxSync } from './lib/inbox'
-import { APP_VERSION, OLD_VERSION_MSG, isNative, openApk, reloadLatestWeb, useAppConfig } from './lib/version'
+import { APP_LABEL, APP_VERSION, OLD_VERSION_MSG, isNative, openApk, reloadLatestWeb, useAppConfig, versionLabel } from './lib/version'
 import type { AppConfig } from './lib/version'
 import { GoCodeScreen, hasAccess } from './screens/GoCode'
 import { UsersPage } from './screens/Admin'
@@ -105,6 +105,7 @@ function Shell() {
   useEffect(() => { const t = setInterval(() => setTick((x) => x + 1), 60_000); return () => clearInterval(t) }, [])
   const inboxN = useBadge()
   const cfg = useAppConfig()
+  const [skipUpdate, setSkipUpdate] = useState(false)
   const [tab, setTab] = useState<Tab>('accueil')
   const [sub, setSub] = useState<SubPage | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -186,10 +187,12 @@ function Shell() {
   const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
   const { pull, spinning } = usePullToRefresh(refreshAll, !!session && !locked && isTouch)
 
+  // Règle NORD DIGITAL : vérification de version avant tout le reste
+  if (cfg && APP_VERSION < cfg.min) return <OldVersionScreen cfg={cfg} />
+  if (cfg && cfg.latest > APP_VERSION && !skipUpdate) return <UpdateScreen cfg={cfg} onLater={() => setSkipUpdate(true)} />
   if (!authReady || (session && (!carnetReady || !profileReady || !accessReady))) {
     return <div className="flex h-full items-center justify-center bg-white"><div className="h-10 w-10 animate-spin rounded-full border-4 border-sun-100 border-t-sun-500" /></div>
   }
-  if (cfg && APP_VERSION < cfg.min) return <OldVersionScreen cfg={cfg} />
   if (!session) return <AuthScreen />
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
   if (!profile?.onboarded || !profile.full_name?.trim()) return <ProfileSetup />
@@ -350,6 +353,30 @@ function OldVersionScreen({ cfg }: { cfg: AppConfig }) {
         ? cfg.apkUrl && <button onClick={() => openApk(cfg.apkUrl)} className="btn-primary mt-8 w-full"><Download size={20} /> Télécharger la nouvelle version</button>
         : <button onClick={reloadLatestWeb} className="btn-primary mt-8 w-full"><RefreshCw size={20} /> Charger la nouvelle version</button>}
       <a href="mailto:gosamsan1122@gmail.com" className="mt-4 py-2 text-sm text-[#4A56E2]">Contacter NORD DIGITAL</a>
+      <ByNord className="mb-6 mt-auto" />
+    </div>
+  )
+}
+
+/* ---------- Mise à jour proposée dès l'ouverture ---------- */
+function UpdateScreen({ cfg, onLater }: { cfg: AppConfig; onLater: () => void }) {
+  // Version web : on recharge directement la dernière version (une fois par session)
+  useEffect(() => {
+    if (isNative) return
+    try { if (sessionStorage.getItem('bf-web-reload') === String(cfg.latest)) { onLater(); return } sessionStorage.setItem('bf-web-reload', String(cfg.latest)) } catch { /* ignore */ }
+    reloadLatestWeb()
+  }, [cfg.latest, onLater])
+  return (
+    <div className="pt-safe pb-safe mx-auto flex min-h-full max-w-md flex-col items-center bg-white px-6 pt-16 text-center">
+      <Brand />
+      <div className="mt-10 flex h-20 w-20 items-center justify-center rounded-full bg-sun-100"><Download size={40} className="text-sun-600" /></div>
+      <p className="mt-6 text-xl font-semibold">Mise à jour disponible</p>
+      <p className="mt-1 text-ink-muted">Budget.Go.Family <b className="text-ink">v{versionLabel(cfg.latest)}</b> est prête (tu as la v{APP_LABEL}).</p>
+      <p className="mt-3 text-sm text-ink-muted">Installe-la maintenant pour profiter des dernières améliorations et corrections. Tes données restent en place.</p>
+      {isNative
+        ? cfg.apkUrl && <button onClick={() => openApk(cfg.apkUrl)} className="btn-primary mt-8 w-full"><Download size={20} /> Mettre à jour maintenant</button>
+        : <button onClick={reloadLatestWeb} className="btn-primary mt-8 w-full"><RefreshCw size={20} /> Charger la nouvelle version</button>}
+      <button onClick={onLater} className="mt-3 py-2 text-sm text-ink-muted">Plus tard</button>
       <ByNord className="mb-6 mt-auto" />
     </div>
   )
