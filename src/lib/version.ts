@@ -8,8 +8,10 @@ import { supabase } from './supabase'
  * APP_VERSION = X*10000 + Y*100 + Z (sert à comparer avec min_version / latest_version de app_config).
  * Si APP_VERSION < min_version, l'application est bloquée.
  */
-export const APP_LABEL = '3.5.0'
+export const APP_LABEL = '3.6.0'
 export const APP_VERSION = APP_LABEL.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0)
+/** 30600 → « 3.6.0 » */
+export const versionLabel = (n: number) => `${Math.floor(n / 10000)}.${Math.floor((n % 10000) / 100)}.${n % 100}`
 export const isNative = Capacitor.isNativePlatform()
 export const OLD_VERSION_MSG = "Vous utilisez l'ancienne version de Budget.Go.Family, merci de contacter Nord Digital svp."
 
@@ -24,7 +26,9 @@ export function useAppConfig() {
       const { data, error } = await supabase.from('app_config').select('key,value')
       if (!alive || error || !data) return
       const m = new Map((data as { key: string; value: string }[]).map((r) => [r.key, r.value]))
-      setCfg({ min: Number(m.get('min_version') ?? 0), latest: Number(m.get('latest_version') ?? 0), apkUrl: m.get('apk_url') ?? '', webUrl: m.get('web_url') ?? '' })
+      const latest = Number(m.get('latest_version') ?? 0)
+      const tpl = m.get('apk_url_tpl')
+      setCfg({ min: Number(m.get('min_version') ?? 0), latest, apkUrl: tpl && latest >= 10000 ? tpl.replace('{v}', versionLabel(latest)) : m.get('apk_url') ?? '', webUrl: m.get('web_url') ?? '' })
     }
     load()
     const v = () => { if (document.visibilityState === 'visible') load() }

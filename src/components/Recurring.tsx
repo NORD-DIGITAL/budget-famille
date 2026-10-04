@@ -1,16 +1,35 @@
 import { useState } from 'react'
-import { CalendarClock, Check, Plus, Repeat } from 'lucide-react'
+import { CalendarClock, Check, ChevronRight, Plus, Repeat } from 'lucide-react'
+import { openTx } from './TxDetail'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { fmt, monthKey, parseAmount, todayISO } from '../lib/format'
 import type { Recurring, RecurringDue } from '../lib/types'
 import { fmtMonthLong } from './DatePicker'
 import { DateField } from './DatePicker'
-import { Empty, IconBubble, Segmented, Sheet } from './ui'
+import { BareIcon, Empty, IconBubble, Segmented, Sheet } from './ui'
 
 const chip = (on: boolean) => `rounded-full border px-3 py-1.5 text-sm ${on ? 'border-ink bg-ink text-white' : 'border-cream-line bg-white'}`
 
-type Draft = { r: Recurring | null; label: string; amount: string; catId: string | null; accId: string | null; memId: string | null; day: number; mode: 'auto' | 'valider'; active: boolean; startOn: string }
+/** Choix proposés au lieu de taper un nom ; la catégorie est choisie automatiquement. */
+export const PRESETS: { name: string; cat: RegExp | null }[] = [
+  { name: 'Loyer', cat: /^loyer$|^logement$/i },
+  { name: 'Jirama', cat: /^jirama$/i },
+  { name: 'Écolage', cat: /[ée]colage/i },
+  { name: 'Prêt bancaire', cat: /^pr[êe]t bancaire$/i },
+  { name: 'Internet / Wi-Fi', cat: /wi-?fi|^connectivit/i },
+  { name: 'Crédit téléphone', cat: /cr[ée]dit t[ée]l|data mobile/i },
+  { name: 'Transport', cat: /^transport$/i },
+  { name: 'Abonnement TV', cat: /^loisirs?$/i },
+  { name: 'Aide à la famille', cat: /familles? autres?|^famille$/i },
+  { name: 'Autre', cat: null },
+]
+const splitLabel = (label: string) => {
+  const p = PRESETS.find((x) => x.name !== 'Autre' && (label === x.name || label.startsWith(x.name + ' · ')))
+  return p ? { choice: p.name, precision: label.slice(p.name.length + 3), custom: '' } : { choice: 'Autre', precision: '', custom: label }
+}
+
+type Draft = { r: Recurring | null; choice: string; precision: string; custom: string; label: string; amount: string; catId: string | null; accId: string | null; memId: string | null; day: number; mode: 'auto' | 'valider'; active: boolean; startOn: string }
 
 /** Échéances déjà passées entre la date de commencement et aujourd'hui (mois YYYY-MM). */
 function pastMonths(startOn: string, day: number, after: string | null) {
@@ -31,6 +50,7 @@ function pastMonths(startOn: string, day: number, after: string | null) {
 export function RecurringSection() {
   const { recurring, categories, accounts, members, catById, catPath, carnet, cur, reload } = useData()
   const [edit, setEdit] = useState<Draft | null>(null)
+  const [fiche, setFiche] = useState<Recurring | null>(null)
   const [err, setErr] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
   const month = monthKey(new Date())
@@ -39,18 +59,20 @@ export function RecurringSection() {
     setErr(''); setConfirmDel(false)
     const day = r?.day_of_month ?? new Date().getDate()
     setEdit(r
-      ? { r, label: r.label, amount: r.amount.toLocaleString('fr-FR'), catId: r.category_id, accId: r.account_id, memId: r.member_id, day, mode: r.mode, active: r.active, startOn: r.start_on ?? `${r.start_month}-${String(Math.min(day, 28)).padStart(2, '0')}` }
-      : { r: null, label: '', amount: '', catId: null, accId: accounts.find((a) => !a.archived)?.id ?? null, memId: null, day, mode: 'valider', active: true, startOn: todayISO() })
+      ? { r, ...splitLabel(r.label), label: r.label, amount: r.amount.toLocaleString('fr-FR'), catId: r.category_id, accId: r.account_id, memId: r.member_id, day, mode: r.mode, active: r.active, startOn: r.start_on ?? `${r.start_month}-${String(Math.min(day, 28)).padStart(2, '0')}` }
+      : { r: null, choice: '', precision: '', custom: '', label: '', amount: '', catId: null, accId: accounts.find((a) => !a.archived)?.id ?? null, memId: null, day, mode: 'valider', active: true, startOn: todayISO() })
   }
 
   const save = async () => {
     if (!edit) return
     const amount = parseAmount(edit.amount)
-    if (!edit.label.trim()) return setErr('Donne un nom (ex : Loyer).')
+    const label = edit.choice === 'Autre' ? edit.custom.trim() : edit.choice ? [edit.choice, edit.precision.trim()].filter(Boolean).join(' · ') : ''
+    if (!edit.choice) return setErr('Choisis le type de dépense fixe.')
+    if (!label) return setErr('Indique le nom de cette dépense fixe.')
     if (!amount) return setErr('Montant requis.')
     if (!edit.startOn) return setErr('Choisis la date de commencement.')
     const row = {
-      label: edit.label.trim(), amount, category_id: edit.catId, account_id: edit.accId, member_id: edit.memId,
+      label, amount, category_id: edit.catId, account_id: edit.accId, member_id: edit.memId,
       day_of_month: edit.day, mode: edit.mode, active: edit.active,
       // Date de commencement : les échéances passées depuis cette date sont rattrapées
       start_on: edit.startOn, start_month: edit.startOn.slice(0, 7),
@@ -84,7 +106,7 @@ export function RecurringSection() {
             const c = r.category_id ? catById.get(r.category_id) : undefined
             const done = r.last_month === month
             return (
-              <button key={r.id} onClick={() => open(r)} className={`flex w-full items-center gap-3 px-3 py-3 text-left ${r.active ? '' : 'opacity-50'}`}>
+              <button key={r.id} onClick={() => setFiche(r)} className={`flex w-full items-center gap-3 px-3 py-3 text-left ${r.active ? '' : 'opacity-50'}`}>
                 <IconBubble name={c?.name ?? r.label} icon={c?.icon ?? '🔁'} color={c?.color ?? 'var(--accent)'} size={36} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{r.label}</p>
@@ -100,11 +122,24 @@ export function RecurringSection() {
         </div>
       )}
 
+      <RecurringFiche r={fiche ? recurring.find((x) => x.id === fiche.id) ?? null : null} onClose={() => setFiche(null)} onEdit={(r) => open(r)} />
       <Sheet open={!!edit} onClose={() => setEdit(null)} title={edit?.r ? 'Modifier la dépense fixe' : 'Nouvelle dépense fixe'}>
         {edit && (
           <div className="space-y-3">
-            <div><label className="label">Nom</label>
-              <input className="input" placeholder="Ex : Loyer, Jirama, Écolage" maxLength={80} value={edit.label} onChange={(e) => setEdit({ ...edit, label: e.target.value })} /></div>
+            <div><p className="label">Quelle dépense fixe ?</p>
+              <div className="grid grid-cols-2 gap-2">
+                {PRESETS.map((p) => (
+                  <button key={p.name} type="button" onClick={() => {
+                    const cat = p.cat ? categories.find((c) => c.kind === 'depense' && !c.archived && p.cat!.test(c.name)) : undefined
+                    setEdit({ ...edit, choice: p.name, catId: cat?.id ?? edit.catId })
+                  }} className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm ${edit.choice === p.name ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>
+                    <BareIcon name={p.name === 'Autre' ? 'Autres' : p.name === 'Abonnement TV' ? 'Film' : p.name === 'Aide à la famille' ? 'Familles autres' : p.name} size={18} inherit /><span className="min-w-0 truncate">{p.name}</span>
+                  </button>
+                ))}
+              </div>
+              {edit.choice === 'Autre' && <input className="input mt-2" placeholder="Nom de la dépense fixe" maxLength={80} value={edit.custom} onChange={(e) => setEdit({ ...edit, custom: e.target.value })} />}
+              {edit.choice && edit.choice !== 'Autre' && <input className="input mt-2" placeholder="Précision (facultatif) : ex. Nolan et Ace, BNI…" maxLength={60} value={edit.precision} onChange={(e) => setEdit({ ...edit, precision: e.target.value })} />}
+            </div>
             <div><label className="label">Montant mensuel ({cur})</label>
               <input className="input text-lg font-semibold" inputMode="numeric" value={edit.amount}
                 onChange={(e) => { const n = parseAmount(e.target.value); setEdit({ ...edit, amount: n ? n.toLocaleString('fr-FR') : '' }) }} /></div>
@@ -204,5 +239,62 @@ export function RecurringDueCard() {
         )}
       </Sheet>
     </div>
+  )
+}
+
+/** Fiche d'une dépense fixe : réglages, prochaine échéance, historique des dépenses créées. */
+function RecurringFiche({ r, onClose, onEdit }: { r: Recurring | null; onClose: () => void; onEdit: (r: Recurring) => void }) {
+  const { txs, catById, catPath, accById, memById, cur, reload, recurringDue } = useData()
+  const [confirm, setConfirm] = useState(false)
+  const close = () => { setConfirm(false); onClose() }
+  if (!r) return <Sheet open={false} onClose={close}>{null}</Sheet>
+  const c = r.category_id ? catById.get(r.category_id) : undefined
+  const hist = txs.filter((t) => t.note === `${r.label} (dépense fixe)`).sort((a, b) => b.occurred_on.localeCompare(a.occurred_on))
+  const pending = recurringDue.filter((x) => x.id === r.id)
+  const next = (() => {
+    const base = r.last_month && r.last_month >= r.start_month ? r.last_month : null
+    let y = Number((base ?? r.start_month).slice(0, 4)), m = Number((base ?? r.start_month).slice(5, 7))
+    if (base) { m++; if (m > 12) { m = 1; y++ } }
+    return `${y}-${String(m).padStart(2, '0')}-${String(Math.min(r.day_of_month, new Date(y, m, 0).getDate())).padStart(2, '0')}`
+  })()
+  const toggle = async () => { await supabase.from('recurring_expenses').update({ active: !r.active }).eq('id', r.id); await reload() }
+  const remove = async () => { if (!confirm) return setConfirm(true); await supabase.from('recurring_expenses').delete().eq('id', r.id); await reload(); close() }
+  const line = (k: string, v: string | null | undefined) => v ? <div key={k} className="flex justify-between gap-4 border-b border-neutral-100 py-2.5 text-sm last:border-0"><span className="text-ink-muted">{k}</span><span className="text-right font-medium">{v}</span></div> : null
+  return (
+    <Sheet open onClose={close} title={r.label}>
+      <div className="space-y-4">
+        <div className="flex flex-col items-center gap-2 rounded-3xl bg-cream-tile p-5 text-center">
+          <IconBubble name={c?.name ?? r.label} icon={c?.icon ?? '🔁'} color={c?.color ?? 'var(--accent)'} size={52} />
+          <p className="text-sm text-ink-muted">{c ? catPath(c.id) : 'Sans catégorie'}</p>
+          <p className="tabular text-3xl font-bold">{fmt(r.amount, cur)}<span className="text-base font-normal text-ink-muted"> / mois</span></p>
+          <span className={`rounded-full px-3 py-1 text-xs font-medium ${!r.active ? 'bg-neutral-200 text-ink-muted' : pending.length ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-800'}`}>
+            {!r.active ? 'En pause' : pending.length ? `${pending.length} échéance${pending.length > 1 ? 's' : ''} à valider` : 'À jour'}
+          </span>
+        </div>
+        <div>
+          {line('Chaque mois', r.day_of_month === 31 ? 'Le dernier jour' : `Le ${r.day_of_month}`)}
+          {line('Mode', r.mode === 'auto' ? 'Ajoutée automatiquement' : 'À valider')}
+          {line('Commencée le', r.start_on ? new Date(r.start_on + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : fmtMonthLong(r.start_month))}
+          {line('Prochaine échéance', r.active ? new Date(next + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : null)}
+          {line('Payé avec', r.account_id ? accById.get(r.account_id)?.name : null)}
+          {line('Par', r.member_id ? memById.get(r.member_id)?.name : null)}
+        </div>
+        <div>
+          <div className="mb-1 flex items-baseline justify-between"><p className="font-semibold">Historique</p><p className="text-xs text-ink-muted">{hist.length} paiement{hist.length > 1 ? 's' : ''} · {fmt(hist.reduce((a, t) => a + t.amount, 0), cur)}</p></div>
+          {hist.length === 0 && <p className="text-sm text-ink-muted">Aucune dépense encore créée.</p>}
+          {hist.map((t) => (
+            <button key={t.id} onClick={() => openTx(t)} className="flex w-full items-center gap-3 border-b border-neutral-100 py-2.5 text-left last:border-0">
+              <div className="min-w-0 flex-1"><p className="text-sm font-medium">{fmtMonthLong(t.occurred_on.slice(0, 7))}</p><p className="text-xs text-ink-muted">le {new Date(t.occurred_on + 'T00:00:00').toLocaleDateString('fr-FR')}</p></div>
+              <span className="tabular text-sm font-semibold">{fmt(t.amount, cur)}</span><ChevronRight size={16} className="text-neutral-400" />
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <button onClick={() => onEdit(r)} className="btn-ghost px-2 py-2.5 text-sm">Modifier</button>
+          <button onClick={toggle} className="btn-ghost px-2 py-2.5 text-sm">{r.active ? 'Pause' : 'Reprendre'}</button>
+          <button onClick={remove} className={`btn px-2 py-2.5 text-sm ${confirm ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600'}`}>{confirm ? 'Confirmer' : 'Supprimer'}</button>
+        </div>
+      </div>
+    </Sheet>
   )
 }

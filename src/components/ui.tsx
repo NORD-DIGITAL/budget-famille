@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home, Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X, Cog, Sofa, PaintRoller, Lamp, SprayCan, WashingMachine, Plug, Armchair, Bed, UsersRound, HouseHeart } from 'lucide-react'
+import { ArrowLeft, Baby, Banknote, Briefcase, Bus, ChevronRight, Clapperboard, Gift, GraduationCap, HeartPulse, Home, Landmark, Lightbulb, PartyPopper, PiggyBank, PlusCircle, ShoppingBag, ShoppingBasket, Smartphone, Store, Wallet, Wifi, X, Cog, Sofa, PaintRoller, Lamp, SprayCan, WashingMachine, Plug, Armchair, Bed, UsersRound, HouseHeart, CreditCard, Receipt } from 'lucide-react'
 import { Hand, Palette, Signal, Apple, Bean, Beef, Bike, BookOpen, CakeSlice, Car, Carrot, Church, ClipboardPen, Coffee, Cookie, Croissant, CupSoda, Droplet, Drumstick, Dumbbell, Egg, Ellipsis, Film, Fish, Flame, Fuel, Gamepad2, HandCoins, Hammer, Heart, HeartHandshake, Laptop, Leaf, Milk, Music, Package, PawPrint, PencilRuler, Pill, Plane, Salad, School, Scissors, Shirt, ShoppingCart, Soup, Sparkles, Ticket, Tractor, Users, UtensilsCrossed, Wheat, Wine, Wrench } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useBackHandler } from '../lib/back'
@@ -7,6 +7,7 @@ import type { LucideIcon } from 'lucide-react'
 
 /* ---------- Icônes au trait pour catégories et comptes ---------- */
 const ICONS: [RegExp, LucideIcon][] = [
+  [/carte bancaire/i, CreditCard], [/frais bancaires?/i, Receipt], [/^banque$|pr[êe]t bancaire/i, Landmark],
   [/v[ée]hicule|voiture|moto\b/i, Car], [/carburant|essence|gasoil/i, Fuel], [/pi[èe]ce/i, Cog], [/r[ée]paration/i, Wrench],
   [/^maison|meuble|canap|fauteuil/i, Sofa], [/\blit\b|matelas/i, Bed], [/r[ée]novation/i, Hammer], [/peinture/i, PaintRoller], [/d[ée]coration/i, Lamp], [/entretien/i, SprayCan],
   [/[ée]lectrom[ée]nager/i, WashingMachine], [/[ée]lectronique/i, Plug], [/^t[ée]l[ée]phone$/i, Smartphone], [/^achat$/i, ShoppingBag],
@@ -39,7 +40,7 @@ export const ICON_SET: Record<string, LucideIcon> = {
   CupSoda, Wine, CakeSlice, Bus, Car, Bike, Fuel, Home, Lightbulb, Droplet, Flame, Wifi, Smartphone, HeartPulse, Pill, Baby, GraduationCap,
   School, BookOpen, PencilRuler, Dumbbell, Shirt, Scissors, Gift, PartyPopper, Church, Film, Gamepad2, Music, Laptop, Sparkles, Plane, Wrench,
   Hammer, PawPrint, Tractor, Store, Briefcase, Banknote, PiggyBank, HandCoins, Landmark, Users, Heart, Ticket, Package, Ellipsis,
-  Sofa, Armchair, Bed, Lamp, UsersRound, HouseHeart, Plug, WashingMachine, PaintRoller, SprayCan, Cog,
+  Sofa, Armchair, Bed, Lamp, UsersRound, HouseHeart, Plug, WashingMachine, PaintRoller, SprayCan, Cog, CreditCard, Receipt,
 }
 
 /** Vrai quand le clavier du téléphone est ouvert (la zone visible rétrécit). */
@@ -62,9 +63,9 @@ export function useKeyboardOpen() {
 }
 
 /** Icône nue (au trait) d'une catégorie ou d'un compte, avec repli sur l'emoji. */
-export function BareIcon({ name, emoji, size = 30 }: { name: string; emoji?: string; size?: number }) {
+export function BareIcon({ name, emoji, size = 30, inherit }: { name: string; emoji?: string; size?: number; inherit?: boolean }) {
   const I = iconFor(name, emoji)
-  return I ? <I size={size} strokeWidth={1.5} className="text-ink" /> : <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{emoji && !emoji.startsWith('i:') ? emoji : '📦'}</span>
+  return I ? <I size={size} strokeWidth={1.5} className={inherit ? '' : 'text-ink'} /> : <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{emoji && !emoji.startsWith('i:') ? emoji : '📦'}</span>
 }
 
 /** Pastille d'icône : icône au trait noire sur fond crème, point de couleur facultatif. */

@@ -150,9 +150,23 @@ export function MessagesPage() {
 type Recipient = { id: string; name: string }
 
 /** Écrire à un utilisateur précis ou à tous (réservé à l'admin). */
+/** Messages automatiques prêts à envoyer (un clic, puis Envoyer). */
+const TEMPLATES: { k: string; label: string; icon: string; title: string; body: string }[] = [
+  { k: 'erreur', label: 'Erreur', icon: '⚠️', title: 'Problème technique en cours',
+    body: "Bonjour,\nUn problème technique perturbe actuellement Budget.Go.Family. Notre équipe travaille à le corriger au plus vite. Vos données sont en sécurité.\nMerci de votre patience.\n— NORD DIGITAL" },
+  { k: 'excuse', label: 'Excuse', icon: '🙏', title: 'Toutes nos excuses',
+    body: "Bonjour,\nNous vous présentons nos excuses pour la gêne occasionnée. Le problème est maintenant résolu et l'application fonctionne normalement.\nMerci pour votre confiance.\n— NORD DIGITAL" },
+  { k: 'maintenance', label: 'Maintenance', icon: '🛠️', title: 'Maintenance prévue',
+    body: "Bonjour,\nUne maintenance de Budget.Go.Family est prévue prochainement. L'application pourra être indisponible quelques minutes. Vos données ne seront pas touchées.\nMerci de votre compréhension.\n— NORD DIGITAL" },
+  { k: 'maj', label: 'Mise à jour', icon: '🚀', title: 'Nouvelle version disponible',
+    body: `Bonjour,\nUne nouvelle version de Budget.Go.Family (v${APP_LABEL}) est disponible avec des améliorations.\nSur Android : touchez le bandeau « Nouvelle version disponible » sur l'accueil pour la télécharger et l'installer. Sur le site web, la mise à jour est automatique.\n— NORD DIGITAL` },
+]
+
+/** Écrire à un utilisateur précis ou à tous (réservé à l'admin) : messages automatiques ou saisie manuelle. */
 export function ComposeMessage({ to, onSent }: { to?: Recipient; onSent?: () => void }) {
   const [users, setUsers] = useState<Recipient[]>([])
   const [dest, setDest] = useState<string>(to?.id ?? 'all')
+  const [tpl, setTpl] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; s: string } | null>(null)
@@ -161,25 +175,50 @@ export function ComposeMessage({ to, onSent }: { to?: Recipient; onSent?: () => 
     if (to) return
     supabase.rpc('admin_users').then(({ data }) => setUsers(((data ?? []) as { id: string; full_name: string | null; email: string }[]).map((u) => ({ id: u.id, name: `${u.full_name || 'Sans nom'} · ${u.email}` }))))
   }, [to])
-  const send = async () => {
-    if (!title.trim() || !body.trim()) return setMsg({ t: 'err', s: 'Écris un titre et un message.' })
+  const post = async (t: string, b: string) => {
+    if (!t.trim() || !b.trim()) return setMsg({ t: 'err', s: 'Écris un titre et un message.' })
     setBusy(true); setMsg(null)
-    const { error } = await supabase.from('admin_messages').insert({ to_user: dest === 'all' ? null : dest, title: title.trim(), body: body.trim() })
+    const { error } = await supabase.from('admin_messages').insert({ to_user: dest === 'all' ? null : dest, title: t.trim(), body: b.trim() })
     setBusy(false)
     if (error) return setMsg({ t: 'err', s: error.message })
-    setTitle(''); setBody(''); setMsg({ t: 'ok', s: dest === 'all' ? 'Annonce envoyée à tous les utilisateurs.' : 'Message envoyé.' }); onSent?.()
+    setMsg({ t: 'ok', s: dest === 'all' ? 'Message envoyé à tous les utilisateurs.' : 'Message envoyé.' }); onSent?.()
+    return true
   }
+  const cur = TEMPLATES.find((x) => x.k === tpl)
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {to ? <p className="text-sm text-ink-muted">À : <b className="text-ink">{to.name}</b></p> : (
         <select aria-label="Destinataire" className="input" value={dest} onChange={(e) => setDest(e.target.value)}>
           <option value="all">📣 Tous les utilisateurs</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
         </select>
       )}
-      <input className="input" placeholder="Titre (ex : Nouvelle version disponible)" aria-label="Titre du message" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} />
-      <textarea className="input min-h-[7rem] resize-y" placeholder="Ton message…" aria-label="Message" maxLength={4000} value={body} onChange={(e) => setBody(e.target.value)} />
+      <section className="space-y-2">
+        <p className="text-sm font-semibold">Messages automatiques</p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {TEMPLATES.map((x) => (
+            <button key={x.k} onClick={() => { setTpl(tpl === x.k ? null : x.k); setMsg(null) }} className={`flex items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-medium ${tpl === x.k ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>
+              <span>{x.icon}</span>{x.label}
+            </button>
+          ))}
+        </div>
+        {cur && (
+          <div className="space-y-3 rounded-2xl border border-sun-500 bg-sun-50 p-3">
+            <p className="font-semibold">{cur.title}</p>
+            <p className="whitespace-pre-wrap text-sm text-ink-soft">{cur.body}</p>
+            <div className="flex gap-2">
+              <button disabled={busy} onClick={async () => { if (await post(cur.title, cur.body)) setTpl(null) }} className="btn-primary flex-1 py-2.5 text-sm"><Send size={16} /> {busy ? 'Envoi…' : 'Envoyer'}</button>
+              <button onClick={() => { setTitle(cur.title); setBody(cur.body); setTpl(null) }} className="btn-ghost bg-white py-2.5 text-sm">Modifier</button>
+            </div>
+          </div>
+        )}
+      </section>
+      <section className="space-y-2">
+        <p className="text-sm font-semibold">Saisie manuelle</p>
+        <input className="input" placeholder="Titre" aria-label="Titre du message" maxLength={120} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <textarea className="input min-h-[7rem] resize-y" placeholder="Ton message…" aria-label="Message" maxLength={4000} value={body} onChange={(e) => setBody(e.target.value)} />
+        <button onClick={async () => { if (await post(title, body)) { setTitle(''); setBody('') } }} disabled={busy} className="btn-primary w-full"><Send size={18} /> {busy ? 'Envoi…' : 'Envoyer'}</button>
+      </section>
       {msg && <p className={`rounded-2xl px-4 py-3 text-sm ${msg.t === 'err' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{msg.s}</p>}
-      <button onClick={send} disabled={busy} className="btn-primary w-full"><Send size={18} /> {busy ? 'Envoi…' : 'Envoyer'}</button>
       <p className="text-xs text-ink-muted">Les utilisateurs ne peuvent pas répondre à ces messages.</p>
     </div>
   )

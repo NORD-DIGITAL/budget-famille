@@ -29,14 +29,26 @@ jobs:
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
+          V=$(grep -oP "APP_LABEL = '\K[0-9.]+" ../src/lib/version.ts)
+          echo "APP_V=$V" >> $GITHUB_ENV
+          cp app/build/outputs/apk/debug/app-debug.apk "../Budget.Go.Family-$V.apk"
+          # ancien nom gardé pour les versions déjà installées
           cp app/build/outputs/apk/debug/app-debug.apk ../BudgetFamille.apk
+      - name: Retirer les anciens fichiers versionnés
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view apk-latest --json assets -q '.assets[].name' 2>/dev/null | grep '^Budget.Go.Family-' | while read -r f; do gh release delete-asset apk-latest "$f" -y || true; done
       - name: Publier l'APK (téléchargement direct)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
-          name: Budget Famille (dernière version)
+          name: Budget.Go.Family v${{ env.APP_V }}
           body: |
-            Télécharge **BudgetFamille.apk** directement depuis ton téléphone Android, puis ouvre-le pour l'installer.
-            Version construite automatiquement à partir du commit ${{ github.sha }}.
+            **Budget.Go.Family v${{ env.APP_V }}** — by NORD DIGITAL
+            Télécharge **Budget.Go.Family-${{ env.APP_V }}.apk** depuis ton téléphone Android, puis ouvre-le pour l'installer.
+            Construit automatiquement à partir du commit ${{ github.sha }}.
           make_latest: true
-          files: BudgetFamille.apk
+          files: |
+            Budget.Go.Family-${{ env.APP_V }}.apk
+            BudgetFamille.apk

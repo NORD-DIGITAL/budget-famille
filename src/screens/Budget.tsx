@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { ChevronRight, Pencil, Plus, Trash2 } from 'lucide-react'
+import { openCatHistory, openTx } from '../components/TxDetail'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { daysInMonth, fmt, monthKey, monthLabel, parseAmount } from '../lib/format'
@@ -11,6 +12,8 @@ export function BudgetPage() {
   const { budgets, categories, txs, month, catById, cur, carnet, reload, catPath } = useData()
   const [edit, setEdit] = useState<{ b: Budget | null; catId: string | null; amount: string; mode: 'global' | 'cat' } | null>(null)
   const [err, setErr] = useState('')
+  const [fiche, setFiche] = useState<Budget | null>(null)
+  const [confirmDel, setConfirmDel] = useState(false)
 
   const spent = useMemo(() => {
     const m = new Map<string | null, number>()
@@ -44,7 +47,7 @@ export function BudgetPage() {
   const remove = async () => {
     if (!edit?.b) return
     await supabase.from('budgets').delete().eq('id', edit.b.id)
-    await reload(); setEdit(null)
+    await reload(); setEdit(null); setFiche(null)
   }
 
   const Row = ({ b }: { b: Budget }) => {
@@ -53,7 +56,7 @@ export function BudgetPage() {
     const left = b.monthly_amount - s
     const pace = s > b.monthly_amount * dayFrac * 1.1 && left > 0
     return (
-      <button onClick={() => setEdit({ b, catId: b.category_id, amount: b.monthly_amount.toLocaleString('fr-FR'), mode: b.category_id ? 'cat' : 'global' })} className="w-full px-3 py-3 text-left">
+      <button onClick={() => setFiche(b)} className="w-full px-3 py-3 text-left">
         <div className="mb-2 flex items-center gap-3">
           <IconBubble name={c?.name ?? ''} icon={c?.icon ?? '💰'} color={c?.color ?? 'var(--accent)'} size={36} />
           <div className="flex-1">
@@ -86,6 +89,50 @@ export function BudgetPage() {
 
       <RecurringSection />
 
+      {(() => {
+        const b = fiche ? budgets.find((x) => x.id === fiche.id) ?? null : null
+        if (!b) return <Sheet open={false} onClose={() => setFiche(null)}>{null}</Sheet>
+        const c = b.category_id ? catById.get(b.category_id) : undefined
+        const s = b.category_id ? spent.m.get(b.category_id) ?? 0 : spent.total
+        const left = b.monthly_amount - s
+        const inBranch = (id: string | null) => { let x = id ? catById.get(id) : undefined; for (let i = 0; x && i < 10; i++) { if (x.id === b.category_id) return true; x = x.parent_id ? catById.get(x.parent_id) : undefined } return false }
+        const list = txs.filter((t) => t.kind === 'depense' && t.occurred_on.startsWith(month) && (!b.category_id || inBranch(t.category_id))).sort((a, z) => z.occurred_on.localeCompare(a.occurred_on))
+        const close = () => { setFiche(null); setConfirmDel(false) }
+        return (
+          <Sheet open onClose={close} title={c ? catPath(c.id) : 'Budget global du mois'}>
+            <div className="space-y-4">
+              <div className="rounded-3xl bg-cream-tile p-4">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-2xl bg-white p-2"><p className="text-[0.6875rem] text-ink-muted">Plafond</p><p className="tabular whitespace-nowrap text-sm font-semibold">{fmt(b.monthly_amount, cur)}</p></div>
+                  <div className="rounded-2xl bg-white p-2"><p className="text-[0.6875rem] text-ink-muted">Dépensé</p><p className="tabular whitespace-nowrap text-sm font-semibold">{fmt(s, cur)}</p></div>
+                  <div className="rounded-2xl bg-white p-2"><p className="text-[0.6875rem] text-ink-muted">{left < 0 ? 'Dépassé' : 'Reste'}</p><p className={`tabular whitespace-nowrap text-sm font-semibold ${left < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{fmt(Math.abs(left), cur)}</p></div>
+                </div>
+                <div className="mt-3"><Progress value={s} max={b.monthly_amount} color={c?.color} /></div>
+                <p className="mt-2 text-xs text-ink-muted">{monthLabel(month)} · {Math.round((s / Math.max(1, b.monthly_amount)) * 100)} % utilisé{isCurrent ? ` · ${Math.round(dayFrac * 100)} % du mois écoulé` : ''}</p>
+              </div>
+              <div>
+                <div className="mb-1 flex items-baseline justify-between"><p className="font-semibold">Dépenses du mois</p><p className="text-xs text-ink-muted">{list.length} opération{list.length > 1 ? 's' : ''}</p></div>
+                {list.length === 0 && <p className="text-sm text-ink-muted">Aucune dépense ce mois-ci.</p>}
+                {list.map((t) => {
+                  const tc = t.category_id ? catById.get(t.category_id) : undefined
+                  return (
+                    <button key={t.id} onClick={() => openTx(t)} className="flex w-full items-center gap-3 border-b border-neutral-100 py-2.5 text-left last:border-0">
+                      <IconBubble name={tc?.name ?? ''} icon={tc?.icon ?? '❔'} color={tc?.color ?? 'var(--accent)'} size={32} />
+                      <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{tc?.name ?? 'Sans catégorie'}</p><p className="truncate text-xs text-ink-muted">{new Date(t.occurred_on + 'T00:00:00').toLocaleDateString('fr-FR')}{t.note ? ` · ${t.note}` : ''}</p></div>
+                      <span className="tabular text-sm font-semibold">{fmt(t.amount, cur)}</span><ChevronRight size={16} className="text-neutral-400" />
+                    </button>
+                  )
+                })}
+                {b.category_id && <button onClick={() => openCatHistory(b.category_id!, 'depense')} className="mt-2 w-full py-2 text-sm text-brand-600">Voir tout l'historique de cette catégorie</button>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEdit({ b, catId: b.category_id, amount: b.monthly_amount.toLocaleString('fr-FR'), mode: b.category_id ? 'cat' : 'global' })} className="btn-ghost flex-1 py-2.5 text-sm"><Pencil size={16} /> Modifier</button>
+                <button onClick={async () => { if (!confirmDel) return setConfirmDel(true); await supabase.from('budgets').delete().eq('id', b.id); await reload(); close() }} className={`btn flex-1 py-2.5 text-sm ${confirmDel ? 'bg-red-500 text-white' : 'bg-red-50 text-red-600'}`}><Trash2 size={16} />{confirmDel ? 'Confirmer' : 'Supprimer'}</button>
+              </div>
+            </div>
+          </Sheet>
+        )
+      })()}
       <Sheet open={!!edit} onClose={() => setEdit(null)} title={edit?.b ? 'Modifier le budget' : 'Nouveau budget'}>
         {edit && (
           <div className="space-y-3">
