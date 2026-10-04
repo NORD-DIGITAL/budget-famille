@@ -8,7 +8,7 @@ import { supabase } from './supabase'
  * APP_VERSION = X*10000 + Y*100 + Z (sert à comparer avec min_version / latest_version de app_config).
  * Si APP_VERSION < min_version, l'application est bloquée.
  */
-export const APP_LABEL = '3.6.1'
+export const APP_LABEL = '3.6.2'
 export const APP_VERSION = APP_LABEL.split('.').map(Number).reduce((a, n, i) => a + n * [10000, 100, 1][i], 0)
 /** 30600 → « 3.6.0 » */
 export const versionLabel = (n: number) => `${Math.floor(n / 10000)}.${Math.floor((n % 10000) / 100)}.${n % 100}`

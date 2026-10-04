@@ -375,11 +375,11 @@ export function DebtsPage() {
       <Progress value={d.paid} max={d.amount} color={d.paid >= d.amount ? '#10B981' : undefined} />
       <div className="mt-3 flex gap-2">
         {d.paid < d.amount && (
-          <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), method: 'especes', ref: '', note: '', files: [] }) }} className="btn-primary flex-1 py-2.5 text-sm">
+          <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), method: 'especes', ref: '', note: '', files: [] }) }} className="btn-primary flex-1 whitespace-nowrap px-3 py-2.5 text-sm">
             {d.direction === 'je_dois' ? '+ Remboursement' : '+ Paiement reçu'}
           </button>
         )}
-        <button onClick={() => setDetail(d)} className="btn-ghost flex-1 bg-white py-2.5 text-sm"><Paperclip size={16} /> Fiche et historique ({countPay.get(d.id) ?? 0})</button>
+        <button onClick={() => setDetail(d)} className="btn-ghost flex-1 whitespace-nowrap bg-white px-3 py-2.5 text-sm"><Paperclip size={16} /> Historique ({countPay.get(d.id) ?? 0})</button>
       </div>
     </div>
   )
