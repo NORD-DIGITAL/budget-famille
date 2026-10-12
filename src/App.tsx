@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, Download, UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
+import { Ban, Download, NotebookPen, UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { DataProvider, useData } from './lib/data'
 import { userInfo } from './lib/prefs'
@@ -30,6 +30,7 @@ import { APP_LABEL, APP_VERSION, OLD_VERSION_MSG, isNative, openApk, reloadLates
 import type { AppConfig } from './lib/version'
 import { GoCodeScreen, hasAccess } from './screens/GoCode'
 import { UsersPage } from './screens/Admin'
+import { TravailPage } from './screens/Travail'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
@@ -250,6 +251,7 @@ function Shell() {
           <SideLink active={sub === 'objectifs'} onClick={() => openSub('objectifs')} Icon={PiggyBank} label="Épargne" />
           <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
           <SideLink active={sub === 'courses'} onClick={() => openSub('courses')} Icon={ShoppingCart} label="Faire les courses" />
+          <SideLink active={sub === 'travail'} onClick={() => openSub('travail')} Icon={NotebookPen} label="Carnet de travail" />
         </nav>
         <div className="mt-auto space-y-2 pt-6">
           <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
@@ -268,7 +270,7 @@ function Shell() {
 
       <main className="mx-auto min-h-full max-w-lg bg-white pb-28 md:max-w-none lg:mx-6 lg:my-6 lg:max-w-none lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm 2xl:mx-10">
         {sub ? (
-          <div className="lg:mx-auto lg:max-w-3xl">
+          <div className={sub === 'travail' ? 'lg:mx-auto lg:max-w-5xl' : 'lg:mx-auto lg:max-w-3xl'}>
             <Header title={SUB_TITLES[sub]} onBack={closeSub} />
             {sub === 'budget' && <BudgetPage />}
             {sub === 'objectifs' && <GoalsPage />}
@@ -283,6 +285,7 @@ function Shell() {
             {sub === 'inbox' && <InboxPage />}
             {sub === 'users' && <UsersPage />}
             {sub === 'confidentialite' && <PrivacyPage />}
+            {sub === 'travail' && <TravailPage />}
           </div>
         ) : (
           <>

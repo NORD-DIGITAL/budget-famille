@@ -37,6 +37,11 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 - Politique de confidentialité (`src/screens/Privacy.tsx`, page dans Compte), case obligatoire à l'inscription (métadonnées `privacy_accepted_at`, `privacy_version`).
 - Sécurité : verrou empreinte/visage, déconnexion automatique 8 h / 18 h, effacement des données par le créateur, export JSON/CSV.
 
+## Carnet de travail (v3.7.0)
+- Section « Carnet de travail » (Compte, Voir tout › Suivre, barre latérale) : rendez-vous, tâches, notes personnels, au style du carnet WORK YAS (bleu encre, Bricolage Grotesque / IBM Plex Sans / JetBrains Mono, CSS limité à `.ct` dans `src/screens/travail.css`).
+- Tables `work_events`, `work_tasks`, `work_notes` (RLS : chaque utilisateur ne voit que ses lignes). SQL : `supabase/carnet_travail.sql` — **à exécuter dans Supabase avant de publier la 3.7.0** (sinon l'écran affiche « pas encore activé »).
+- Rappels : notifications locales de l'APK (`src/lib/travail.ts`, ids 2 000 000+, `extra.kind = 'travail'`), reprogrammées à chaque ouverture de l'écran. Journée entière : la veille à 20h ou 8h. Hebdomadaire : notification répétée le même jour de la semaine.
+
 ## Fichiers clés
 - `src/App.tsx` : ordre des écrans = chargement → version → connexion → verrou → profil → Go Code → carnet.
 - `src/lib/data.tsx` : chargement des données.

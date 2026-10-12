@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
+import { ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { saveTextFile, slug, stamp, toCsv } from '../lib/files'
@@ -15,9 +15,9 @@ import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeFor
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
-export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail',
 }
 
 function useExportCsv() {
@@ -66,6 +66,7 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <Row icon={ico(Target)} label="Budget du mois" onClick={() => open('budget')} />
         <Row icon={ico(PiggyBank)} label="Épargne" onClick={() => open('objectifs')} />
         <Row icon={ico(HandCoins)} label="Dettes" sub="Ce que je dois, ce qu'on me doit" onClick={() => open('dettes')} />
+        <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />
         <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
         <Row icon={ico(Landmark)} label="Comptes" onClick={() => open('comptes')} />
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
@@ -103,6 +104,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
       { label: "Épargne", Icon: PiggyBank, run: go(() => openSub('objectifs')) },
       { label: 'Dettes', Icon: HandCoins, run: go(() => openSub('dettes')) },
       { label: 'Faire les courses', Icon: ShoppingCart, run: go(() => openSub('courses')) },
+      { label: 'Carnet de travail', Icon: NotebookPen, run: go(() => openSub('travail')) },
       { label: 'Graphiques', Icon: PieChart, run: go(goCharts) },
     ] },
     { title: 'Organiser', items: [
