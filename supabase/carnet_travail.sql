@@ -1,5 +1,5 @@
 -- Carnet de travail (v3.7.0) : rendez-vous, tâches et notes personnels.
--- Chaque ligne appartient à un seul utilisateur (RLS : user_id = auth.uid()).
+-- Réservé au compte gosamsan1122@gmail.com ; chaque ligne appartient à son auteur (RLS).
 
 create table if not exists public.work_events (
   id uuid primary key default gen_random_uuid(),
@@ -44,7 +44,7 @@ declare t text;
 begin
   foreach t in array array['work_events', 'work_tasks', 'work_notes'] loop
     execute format('drop policy if exists "own rows" on public.%I', t);
-    execute format('create policy "own rows" on public.%I for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid())', t);
+    execute format('create policy "own rows" on public.%I for all to authenticated using (user_id = auth.uid() and lower(auth.jwt() ->> ''email'') = ''gosamsan1122@gmail.com'') with check (user_id = auth.uid() and lower(auth.jwt() ->> ''email'') = ''gosamsan1122@gmail.com'')', t);
   end loop;
 end $$;
 

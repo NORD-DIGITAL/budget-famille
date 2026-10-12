@@ -30,6 +30,15 @@
   --cream: 245 253 255; --cream-tile: 236 251 254; --cream-line: 196 238 247; --hero: #CFFAFE; --accent: #06B6D4; --accent-strong: #0891B2;
   --hero-bg: linear-gradient(155deg, #4F46E5 0%, #0EA5E9 60%, #22D3EE 100%); --hero-fg: #ffffff; --hero-muted: rgba(255,255,255,.78); --hero-card: rgba(255,255,255,.16); --hero-low: #FFE4E6;
 }
+/* Encre : style du Carnet de travail (bleu encre, gris bleuté, Bricolage + IBM Plex). Réservé au compte propriétaire. */
+[data-theme="encre"] {
+  --sun-50: 240 242 254; --sun-100: 227 231 253; --sun-300: 199 206 255; --sun-400: 165 176 255; --sun-500: 139 155 255; --sun-600: 47 69 209;
+  --cream: 238 240 245; --cream-tile: 246 247 251; --cream-line: 217 220 232; --hero: #E3E7FD; --accent: #2F45D1; --accent-strong: #2536A8;
+  --hero-bg: linear-gradient(155deg, #2F45D1 0%, #3B52E0 55%, #5B6CF0 100%); --hero-fg: #ffffff; --hero-muted: rgba(255,255,255,.8); --hero-card: rgba(255,255,255,.16); --hero-low: #FFE1DF;
+}
+[data-theme="encre"] body { font-family: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; color: #171a2b; }
+[data-theme="encre"] h1, [data-theme="encre"] h2, [data-theme="encre"] h3 { font-family: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif; letter-spacing: -0.01em; }
+[data-theme="encre"] .tabular { font-family: "JetBrains Mono", ui-monospace, Consolas, monospace; }
 .hero { background: var(--hero-bg); color: var(--hero-fg); }
 .hero .hero-muted { color: var(--hero-muted); }
 .hero .hero-card { background: var(--hero-card); }

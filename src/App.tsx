@@ -31,6 +31,7 @@ import type { AppConfig } from './lib/version'
 import { GoCodeScreen, hasAccess } from './screens/GoCode'
 import { UsersPage } from './screens/Admin'
 import { TravailPage } from './screens/Travail'
+import { isOwner } from './lib/owner'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
@@ -251,7 +252,7 @@ function Shell() {
           <SideLink active={sub === 'objectifs'} onClick={() => openSub('objectifs')} Icon={PiggyBank} label="Épargne" />
           <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
           <SideLink active={sub === 'courses'} onClick={() => openSub('courses')} Icon={ShoppingCart} label="Faire les courses" />
-          <SideLink active={sub === 'travail'} onClick={() => openSub('travail')} Icon={NotebookPen} label="Carnet de travail" />
+          {isOwner(session) && <SideLink active={sub === 'travail'} onClick={() => openSub('travail')} Icon={NotebookPen} label="Carnet de travail" />}
         </nav>
         <div className="mt-auto space-y-2 pt-6">
           <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
@@ -285,7 +286,7 @@ function Shell() {
             {sub === 'inbox' && <InboxPage />}
             {sub === 'users' && <UsersPage />}
             {sub === 'confidentialite' && <PrivacyPage />}
-            {sub === 'travail' && <TravailPage />}
+            {sub === 'travail' && isOwner(session) && <TravailPage />}
           </div>
         ) : (
           <>

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 
-export type ThemeId = 'soleil' | 'menthe' | 'lagon' | 'tropique' | 'ocean'
-export const THEMES: { id: ThemeId; label: string; color: string }[] = [
+export type ThemeId = 'soleil' | 'menthe' | 'lagon' | 'tropique' | 'ocean' | 'encre'
+export const THEMES: { id: ThemeId; label: string; color: string; ownerOnly?: boolean }[] = [
   { id: 'menthe', label: 'Menthe', color: '#10B981' },
   { id: 'soleil', label: 'Soleil', color: '#FFCC00' },
   { id: 'lagon', label: 'Lagon', color: '#0EA5E9' },
   { id: 'tropique', label: 'Tropique', color: '#F97316' },
   { id: 'ocean', label: 'Océan', color: '#4F46E5' },
+  { id: 'encre', label: 'Encre', color: '#2F45D1', ownerOnly: true },
 ]
 
 const key = (uid: string) => `bf-theme-${uid}`
@@ -28,7 +29,7 @@ export function useUserTheme(uid: string | null): ThemeId {
 /** Le carnet principal garde le thème choisi ; les autres carnets prennent une autre couleur, toujours la même pour un carnet donné. */
 export function themeForCarnet(carnetId: string | null, principalId: string | null, userTheme: ThemeId): ThemeId {
   if (!carnetId || carnetId === principalId) return userTheme
-  const others = THEMES.filter((t) => t.id !== userTheme)
+  const others = THEMES.filter((t) => t.id !== userTheme && !t.ownerOnly)
   let h = 0
   for (const ch of carnetId) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   return others[h % others.length].id

@@ -9,6 +9,7 @@ import type { Kind } from '../lib/types'
 import { ByNord, Header, Row, Sheet } from '../components/ui'
 import { useBadge } from '../lib/inbox'
 import { APP_LABEL } from '../lib/version'
+import { isOwner } from '../lib/owner'
 import { SubscriptionCard } from './GoCode'
 import { CarnetSwitcher } from '../components/Carnets'
 import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeForCarnet } from '../lib/theme'
@@ -66,7 +67,7 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         <Row icon={ico(Target)} label="Budget du mois" onClick={() => open('budget')} />
         <Row icon={ico(PiggyBank)} label="Épargne" onClick={() => open('objectifs')} />
         <Row icon={ico(HandCoins)} label="Dettes" sub="Ce que je dois, ce qu'on me doit" onClick={() => open('dettes')} />
-        <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />
+        {isOwner(session) && <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />}
         <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
         <Row icon={ico(Landmark)} label="Comptes" onClick={() => open('comptes')} />
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
@@ -93,6 +94,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
   open: boolean; onClose: () => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void
 }) {
   const csv = useExportCsv()
+  const { session } = useData()
   const go = (f: () => void) => () => { onClose(); f() }
   const sections: { title: string; items: { label: string; Icon: LucideIcon; run: () => void }[] }[] = [
     { title: 'Saisir', items: [
@@ -104,7 +106,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
       { label: "Épargne", Icon: PiggyBank, run: go(() => openSub('objectifs')) },
       { label: 'Dettes', Icon: HandCoins, run: go(() => openSub('dettes')) },
       { label: 'Faire les courses', Icon: ShoppingCart, run: go(() => openSub('courses')) },
-      { label: 'Carnet de travail', Icon: NotebookPen, run: go(() => openSub('travail')) },
+      ...(isOwner(session) ? [{ label: 'Carnet de travail', Icon: NotebookPen, run: go(() => openSub('travail')) }] : []),
       { label: 'Graphiques', Icon: PieChart, run: go(goCharts) },
     ] },
     { title: 'Organiser', items: [
@@ -173,10 +175,10 @@ function ThemeRow() {
     <div className="border-b border-neutral-100 px-5 py-4">
       <p className="mb-2 text-sm text-ink-muted">Thème de couleur</p>
       <div className="grid grid-cols-3 gap-2">
-        {THEMES.map((x) => (
+        {THEMES.filter((x) => !x.ownerOnly || isOwner(session)).map((x) => (
           <button key={x.id} onClick={() => setUserTheme(uid, x.id)}
             className={`flex items-center justify-center gap-2 rounded-full border py-2 text-sm transition ${t === x.id ? 'border-ink bg-ink text-white' : 'border-cream-line bg-cream-tile'}`}>
-            <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: x.id === 'tropique' ? 'linear-gradient(135deg,#FB923C,#F43F5E,#C026D3)' : x.id === 'ocean' ? 'linear-gradient(135deg,#4F46E5,#0EA5E9,#22D3EE)' : x.color }} />{x.label}
+            <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: x.id === 'tropique' ? 'linear-gradient(135deg,#FB923C,#F43F5E,#C026D3)' : x.id === 'ocean' ? 'linear-gradient(135deg,#4F46E5,#0EA5E9,#22D3EE)' : x.id === 'encre' ? 'linear-gradient(135deg,#171A2B,#2F45D1,#8B9BFF)' : x.color }} />{x.label}
           </button>
         ))}
       </div>
