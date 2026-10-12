@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Mail, ShoppingCart, BellRing, SlidersHorizontal, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, MoreVertical, PieChart, PiggyBank, Search, Target, Users, X } from 'lucide-react'
+import { Mail, ShoppingCart, BellRing, SlidersHorizontal, RefreshCw, ArrowDownLeft, ArrowUpRight, Eye, EyeOff, MoreVertical, PieChart, PiggyBank, Search, Target, HandCoins, NotebookPen, X } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useData } from '../lib/data'
 import { dayLabel, daysInMonth, fmt, signed, todayISO } from '../lib/format'
@@ -13,6 +13,8 @@ import { AccueilAside } from './AccueilAside'
 import { MonthBar, fmtMonthLong } from '../components/DatePicker'
 import { RecurringDueCard } from '../components/Recurring'
 import type { SubPage } from './Plus'
+import { isOwner } from '../lib/owner'
+import { WorkGlance } from './WorkGlance'
 
 export const LOW = 20000
 
@@ -77,7 +79,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
     { label: 'Budget', Icon: Target, run: () => openSub('budget') },
     { label: 'Épargne', Icon: PiggyBank, run: () => openSub('objectifs') },
     { label: 'Courses', Icon: ShoppingCart, run: () => openSub('courses') },
-    { label: 'Membres', Icon: Users, run: () => openSub('membres') },
+    { label: 'Dettes', Icon: HandCoins, run: () => openSub('dettes') },
     { label: 'Graphiques', Icon: PieChart, run: goCharts },
     { label: 'Voir tout', Icon: MoreVertical, run: openAll },
   ]
@@ -87,19 +89,24 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
       <div className="hero pb-8 lg:[@media(min-height:860px)]:sticky lg:top-4 lg:overflow-hidden lg:rounded-[28px] lg:pb-2">
       {/* En-tête : salutation */}
       <header className="pt-safe px-5">
-        <div className="flex items-center gap-3 py-4">
-          <button onClick={() => openSub('profil')} aria-label="Mon profil" className="flex min-w-0 flex-1 items-center gap-3 text-left">
+        <div className="flex items-center gap-1 py-4">
+          <button onClick={() => openSub('profil')} aria-label="Mon profil" className="mr-1 flex min-w-0 flex-1 items-center gap-3 text-left">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink text-base font-semibold text-white">{me.initials}</span>
             <span className="min-w-0 flex-1 leading-tight">
               <span className="hero-muted block text-sm">Bonjour</span>
               <span className="block truncate text-[1.0625rem] font-medium">{me.name}</span>
-              {me.phone && <span className="hero-muted tabular block text-sm">{me.phone}</span>}
+              {me.phone && <span className="hero-muted tabular block truncate text-sm">{me.phone}</span>}
             </span>
           </button>
           <button aria-label={`Boîte de réception${inboxN ? ` : ${inboxN} non lu${inboxN > 1 ? 's' : ''}` : ''}`} onClick={() => openSub('inbox')} className="relative flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
             <Mail size={22} strokeWidth={1.8} />
             {inboxN > 0 && <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6875rem] font-bold text-white">{inboxN > 99 ? '99+' : inboxN}</span>}
           </button>
+          {isOwner(session) && (
+            <button aria-label="Carnet de travail" onClick={() => openSub('travail')} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
+              <NotebookPen size={22} strokeWidth={1.8} />
+            </button>
+          )}
           <button aria-label="Actualiser" onClick={async () => { setRefreshing(true); await onRefresh(); setRefreshing(false) }} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
             <RefreshCw size={22} strokeWidth={1.8} className={refreshing ? 'animate-spin' : ''} />
           </button>
@@ -163,6 +170,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
       {/* Opérations */}
       <section className="relative -mt-6 min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:mt-0 lg:px-8 lg:pt-4">
+        {!q && isOwner(session) && <WorkGlance onOpen={() => openSub('travail')} />}
         {!q && <RecurringDueCard />}
         <div className="mb-3 flex items-center gap-2">
           <h2 className="section-title flex-1">{q ? 'Résultats' : 'Opérations du mois'}</h2>

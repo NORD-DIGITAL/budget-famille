@@ -60,26 +60,28 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
         </div>
       </div>
       <SubscriptionCard onAdmin={() => open('users')} />
+
+      <h3 className="px-5 pb-1 pt-6 text-xs font-semibold uppercase tracking-wider text-ink-muted">Organiser / personnaliser</h3>
       <ThemeRow />
       <SizeRow />
-
       <div>
-        <Row icon={ico(Target)} label="Budget du mois" onClick={() => open('budget')} />
-        <Row icon={ico(PiggyBank)} label="Épargne" onClick={() => open('objectifs')} />
-        <Row icon={ico(HandCoins)} label="Dettes" sub="Ce que je dois, ce qu'on me doit" onClick={() => open('dettes')} />
-        {isOwner(session) && <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />}
+        <BiometricRow />
         <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
-        <Row icon={ico(Landmark)} label="Comptes" onClick={() => open('comptes')} />
+        <Row icon={ico(Landmark)} label="Comptes" sub="Espèces, MVola, Orange Money, banque…" onClick={() => open('comptes')} />
+        <div className="border-b border-neutral-100 px-5 py-3"><CarnetSwitcher /></div>
+      </div>
+
+      <h3 className="px-5 pb-1 pt-6 text-xs font-semibold uppercase tracking-wider text-ink-muted">Plus</h3>
+      <div>
+        {isOwner(session) && <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />}
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
         <Row icon={ico(Share2)} label="Famille & partage" sub="Inviter un proche avec le code" onClick={() => open('partage')} />
-        <BiometricRow />
         <Row icon={ico(Lightbulb)} label="Remarque / suggestion" sub="Proposer une amélioration" onClick={() => open('remarques')} />
         {isAdmin && <Row icon={ico(Users)} label="Utilisateurs" sub="Comptes, jours restants, Go Codes (admin)" onClick={() => open('users')} />}
         <Row icon={ico(Inbox)} label="Boîte de réception" sub={isAdmin ? 'Remarques reçues · messages aux utilisateurs' : inboxN ? `${inboxN} message${inboxN > 1 ? 's' : ''} non lu${inboxN > 1 ? 's' : ''}` : "Messages de l'équipe NORD DIGITAL"} onClick={() => open('inbox')}
           right={<span className="flex items-center gap-2">{inboxN > 0 && <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-semibold text-white">{inboxN}</span>}<ChevronRight size={22} className="text-neutral-400" /></span>} />
         <Row icon={ico(ShieldCheck)} label="Politique de confidentialité" sub="Tes données et tes droits" onClick={() => open('confidentialite')} />
         <Row icon={ico(FileDown)} label="Exporter vers Excel (CSV)" sub={csv.status || undefined} onClick={csv.run} right={<span />} />
-        <div className="border-b border-neutral-100 px-5 py-3"><CarnetSwitcher /></div>
         <Row icon={<LogOut size={26} strokeWidth={1.6} />} label={confirmOut ? 'Toucher encore pour confirmer' : 'Se déconnecter'} danger
           onClick={() => (confirmOut ? supabase.auth.signOut() : setConfirmOut(true))} />
       </div>
@@ -158,8 +160,8 @@ function BiometricRow() {
     if (e) setMsg(e); else setOn(true)
   }
   return (
-    <Row icon={<Fingerprint size={26} strokeWidth={1.6} />} label="Connexion par empreinte / visage / code"
-      sub={msg || (avail === false ? "Non disponible sur cet appareil ou ce navigateur" : on ? 'Activée · demandée à chaque ouverture' : 'Désactivée')}
+    <Row icon={<Fingerprint size={26} strokeWidth={1.6} />} label="Empreinte / visage"
+      sub={msg || (avail === false ? 'Non disponible sur cet appareil' : on ? 'Activée · demandée à chaque ouverture' : 'Désactivée')}
       onClick={avail ? toggle : undefined}
       right={<span className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition ${on ? 'bg-sun-500' : 'bg-neutral-300'} ${avail === false ? 'opacity-40' : ''}`}>
         <span className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} /></span>} />
