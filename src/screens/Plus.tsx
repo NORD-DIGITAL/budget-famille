@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, Target, UserRound, Users } from 'lucide-react'
+import { ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, SlidersHorizontal, Target, UserRound, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { saveTextFile, slug, stamp, toCsv } from '../lib/files'
@@ -16,9 +16,9 @@ import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeFor
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
-export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail' | 'organiser'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail', organiser: 'Organiser / personnaliser',
 }
 
 function useExportCsv() {
@@ -61,18 +61,8 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
       </div>
       <SubscriptionCard onAdmin={() => open('users')} />
 
-      <h3 className="px-5 pb-1 pt-6 text-xs font-semibold uppercase tracking-wider text-ink-muted">Organiser / personnaliser</h3>
-      <ThemeRow />
-      <SizeRow />
       <div>
-        <BiometricRow />
-        <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
-        <Row icon={ico(Landmark)} label="Comptes" sub="Espèces, MVola, Orange Money, banque…" onClick={() => open('comptes')} />
-        <div className="border-b border-neutral-100 px-5 py-3"><CarnetSwitcher /></div>
-      </div>
-
-      <h3 className="px-5 pb-1 pt-6 text-xs font-semibold uppercase tracking-wider text-ink-muted">Plus</h3>
-      <div>
+        <Row icon={ico(SlidersHorizontal)} label="Organiser / personnaliser" sub="Thème, taille, empreinte, catégories, comptes, carnet" onClick={() => open('organiser')} />
         {isOwner(session) && <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />}
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
         <Row icon={ico(Share2)} label="Famille & partage" sub="Inviter un proche avec le code" onClick={() => open('partage')} />
@@ -87,6 +77,21 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
       </div>
       <ByNord className="pt-6" />
       <p className="pb-8 pt-1 text-center text-xs text-ink-muted">Budget.Go.Family · version {APP_LABEL} · carnet « {carnet?.name} »</p>
+    </>
+  )
+}
+
+/** Page « Organiser / personnaliser » : réglages d'affichage et organisation du carnet. */
+export function OrganiserPage({ open }: { open: (p: SubPage) => void }) {
+  const ico = (I: LucideIcon) => <I size={26} strokeWidth={1.6} />
+  return (
+    <>
+      <ThemeRow />
+      <SizeRow />
+      <BiometricRow />
+      <Row icon={ico(FolderTree)} label="Catégories" onClick={() => open('categories')} />
+      <Row icon={ico(Landmark)} label="Comptes" sub="Espèces, MVola, Orange Money, banque…" onClick={() => open('comptes')} />
+      <div className="px-5 py-4"><CarnetSwitcher /></div>
     </>
   )
 }

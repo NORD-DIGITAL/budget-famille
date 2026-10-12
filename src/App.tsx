@@ -16,7 +16,7 @@ import { AuthScreen, Brand, OnboardingScreen } from './screens/Auth'
 import AccueilScreen from './screens/Carnet'
 import PortefeuilleScreen from './screens/Portefeuille'
 import GraphiquesScreen from './screens/Graphiques'
-import CompteScreen, { AllSheet, SUB_TITLES } from './screens/Plus'
+import CompteScreen, { AllSheet, OrganiserPage, SUB_TITLES } from './screens/Plus'
 import { ProfilePage, ProfileSetup } from './screens/Profile'
 import type { SubPage } from './screens/Plus'
 import { BudgetPage } from './screens/Budget'
@@ -126,7 +126,7 @@ function Shell() {
 
   // Le bouton retour d'Android ferme la sous-page ouverte
   useEffect(() => {
-    const onPop = () => { setSub(null); setFormOpen(false); setAllOpen(false) }
+    const onPop = () => { setSub((history.state?.p as SubPage | undefined) ?? null); setFormOpen(false); setAllOpen(false) }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
@@ -287,6 +287,7 @@ function Shell() {
             {sub === 'users' && <UsersPage />}
             {sub === 'confidentialite' && <PrivacyPage />}
             {sub === 'travail' && isOwner(session) && <TravailPage />}
+            {sub === 'organiser' && <OrganiserPage open={openSub} />}
           </div>
         ) : (
           <>
