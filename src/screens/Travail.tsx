@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { ChevronRight, Pencil, Trash2, X } from 'lucide-react'
+import { ChevronRight, Pencil, Plus, Trash2, X } from 'lucide-react'
 import './travail.css'
 import { supabase } from '../lib/supabase'
 import { isNative } from '../lib/version'
@@ -29,6 +29,7 @@ export function TravailPage() {
   const [errMsg, setErrMsg] = useState('')
   const [toast, setToast] = useState('')
   const [fiche, setFiche] = useState<Fiche | null>(null)
+  const [adding, setAdding] = useState<AddKind | null>(null)
   const [, setTick] = useState(0)
 
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast(''), 2600) }
@@ -72,7 +73,9 @@ export function TravailPage() {
     },
     addTask: async (text: string, due: string) => {
       const { data, error } = await supabase.from('work_tasks').insert({ text, due: due || null }).select().single()
-      if (!fail(error, 'la tâche')) setTasks((l) => [...l, data as WorkTask])
+      if (fail(error, 'la tâche')) return false
+      setTasks((l) => [...l, data as WorkTask]); flash('Tâche ajoutée')
+      return true
     },
     saveTask: async (id: string, patch: Partial<WorkTask>) => {
       const { data, error } = await supabase.from('work_tasks').update(patch).eq('id', id).select().single()
@@ -145,23 +148,21 @@ export function TravailPage() {
         <section className="ct-card" aria-labelledby="ct-ag">
           <div className="ct-card-h"><h2 id="ct-ag">Agenda</h2><span className="ct-sub">14 prochains jours</span></div>
           <div className="ct-card-b">
+            <button className="ct-new" disabled={!ready} onClick={() => setAdding('event')}><Plus size={18} strokeWidth={2} /> Nouveau rendez-vous</button>
             <Agenda occ={occ} today={today} ready={ready} onOpen={(ev, dayKey) => setFiche({ kind: 'event', ev, dayKey })} />
-            <div className="ct-form-wrap">
-              <span className="ct-label">Nouveau rendez-vous</span>
-              <EventForm disabled={!ready} submitLabel="Ajouter à l'agenda" onSave={act.addEvent} />
-            </div>
           </div>
         </section>
 
         <div className="ct-col">
-          <Tasks tasks={tasks} today={today} disabled={!ready} onAdd={act.addTask} onToggle={act.toggleTask} onOpen={(t) => setFiche({ kind: 'task', t })} />
-          <Notes notes={notes} disabled={!ready} onAdd={act.addNote} onOpen={(n) => setFiche({ kind: 'note', n })} />
+          <Tasks tasks={tasks} today={today} disabled={!ready} onNew={() => setAdding('task')} onToggle={act.toggleTask} onOpen={(t) => setFiche({ kind: 'task', t })} />
+          <Notes notes={notes} disabled={!ready} onNew={() => setAdding('note')} onOpen={(n) => setFiche({ kind: 'note', n })} />
         </div>
       </div>
 
       <p className="ct-foot">BY <b>NORD DIGITAL</b></p>
       {toast && <div className="ct-toast" role="status">{toast}</div>}
 
+      {adding && <AddSheet kind={adding} act={act} onClose={() => setAdding(null)} />}
       {fiche && <FicheView fiche={fiche} today={today} act={act} onChange={setFiche} onClose={() => setFiche(null)} />}
     </div>
   )
@@ -207,7 +208,7 @@ function Agenda({ occ, today, ready, onOpen }: { occ: ReturnType<typeof occurren
           })}
         </div>
       ))}
-      {occ.length === 0 && <p className="ct-hint">Aucun rendez-vous dans les deux prochaines semaines. Ajoute le premier avec le formulaire ci-dessous.</p>}
+      {occ.length === 0 && <p className="ct-hint">Aucun rendez-vous dans les deux prochaines semaines. Touche « Nouveau rendez-vous » pour ajouter le premier.</p>}
     </div>
   )
 }
@@ -268,12 +269,10 @@ function EventForm({ initial, disabled, submitLabel, onSave, onCancel, idPrefix 
 }
 
 /* ---------- Tâches ---------- */
-function Tasks({ tasks, today, disabled, onAdd, onToggle, onOpen }: {
+function Tasks({ tasks, today, disabled, onNew, onToggle, onOpen }: {
   tasks: WorkTask[]; today: string; disabled: boolean
-  onAdd: (text: string, due: string) => Promise<void>; onToggle: (t: WorkTask) => void; onOpen: (t: WorkTask) => void
+  onNew: () => void; onToggle: (t: WorkTask) => void; onOpen: (t: WorkTask) => void
 }) {
-  const [text, setText] = useState('')
-  const [due, setDue] = useState('')
   const open = tasks.filter((t) => !t.done).sort((a, b) => (a.due ?? '9999').localeCompare(b.due ?? '9999') || a.created_at.localeCompare(b.created_at))
   const done = tasks.filter((t) => t.done).sort((a, b) => (b.done_at ?? '').localeCompare(a.done_at ?? '')).slice(0, 8)
   const pct = tasks.length ? Math.round(((tasks.length - open.length) / tasks.length) * 100) : 0
@@ -281,11 +280,7 @@ function Tasks({ tasks, today, disabled, onAdd, onToggle, onOpen }: {
     <section className="ct-card" aria-labelledby="ct-tk">
       <div className="ct-card-h"><h2 id="ct-tk">Tâches</h2><span className="ct-sub">{tasks.length ? `${open.length} à faire` : ''}</span></div>
       <div className="ct-card-b">
-        <form className="ct-add" autoComplete="off" onSubmit={async (e) => { e.preventDefault(); if (!text.trim()) return; const t = text.trim(), d = due; setText(''); setDue(''); await onAdd(t, d) }}>
-          <input id="ct-task" aria-label="Nouvelle tâche" placeholder="Ajouter une tâche…" maxLength={200} value={text} onChange={(e) => setText(e.target.value)} />
-          <input id="ct-due" className="due-in" type="date" aria-label="Échéance (facultatif)" value={due} onChange={(e) => setDue(e.target.value)} />
-          <button className="ct-btn primary" type="submit" disabled={disabled}>Ajouter</button>
-        </form>
+        <button className="ct-new" disabled={disabled} onClick={onNew}><Plus size={18} strokeWidth={2} /> Nouvelle tâche</button>
         {tasks.length > 0 && <div className="ct-bar"><div className="bar"><i style={{ width: `${pct}%` }} /></div><span>{pct} % fait</span></div>}
         <div className="ct-tasks">
           {!tasks.length && <p className="ct-empty">Aucune tâche pour l'instant. Note ici ce qui n'a pas d'heure fixe : préparer le Weekly, relancer un dossier…</p>}
@@ -310,18 +305,14 @@ function DueChip({ due, today, done }: { due: string; today: string; done: boole
 }
 
 /* ---------- Notes ---------- */
-function Notes({ notes, disabled, onAdd, onOpen }: { notes: WorkNote[]; disabled: boolean; onAdd: (t: string) => Promise<boolean>; onOpen: (n: WorkNote) => void }) {
-  const [text, setText] = useState('')
+function Notes({ notes, disabled, onNew, onOpen }: { notes: WorkNote[]; disabled: boolean; onNew: () => void; onOpen: (n: WorkNote) => void }) {
   return (
     <section className="ct-card" aria-labelledby="ct-nt">
       <div className="ct-card-h"><h2 id="ct-nt">Notes</h2><span className="ct-sub">{notes.length ? `${notes.length} note${notes.length > 1 ? 's' : ''}` : ''}</span></div>
       <div className="ct-card-b">
-        <form style={{ display: 'flex', flexDirection: 'column', gap: 8 }} autoComplete="off" onSubmit={async (e) => { e.preventDefault(); if (text.trim() && (await onAdd(text.trim()))) setText('') }}>
-          <textarea id="ct-note-in" className="ct-note-in" aria-label="Nouvelle note" maxLength={4000} value={text} onChange={(e) => setText(e.target.value)} placeholder="Note rapide : compte rendu d'appel, idée pour le Weekly…" />
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><button className="ct-btn primary" type="submit" disabled={disabled}>Enregistrer la note</button></div>
-        </form>
+        <button className="ct-new" disabled={disabled} onClick={onNew}><Plus size={18} strokeWidth={2} /> Nouvelle note</button>
         <div className="ct-notes">
-          {!notes.length && <p className="ct-empty">Pas encore de note. Écris-en une au-dessus, elle restera ici.</p>}
+          {!notes.length && <p className="ct-empty">Pas encore de note. Touche « Nouvelle note » : compte rendu d'appel, idée pour le Weekly…</p>}
           {notes.map((n) => (
             <button key={n.id} className="ct-note" onClick={() => onOpen(n)}>
               <span className="body clamp">{n.text}</span>
@@ -332,6 +323,51 @@ function Notes({ notes, disabled, onAdd, onOpen }: { notes: WorkNote[]; disabled
         </div>
       </div>
     </section>
+  )
+}
+
+/* ---------- Ajout : un bouton d'abord, le formulaire s'ouvre dans une fiche ---------- */
+type AddKind = 'event' | 'task' | 'note'
+function AddSheet({ kind, act, onClose }: {
+  kind: AddKind; onClose: () => void
+  act: { addEvent: (row: NewEvent) => Promise<boolean>; addTask: (text: string, due: string) => Promise<boolean>; addNote: (text: string) => Promise<boolean> }
+}) {
+  useBackHandler(true, onClose)
+  const [text, setText] = useState('')
+  const [due, setDue] = useState('')
+  const [busy, setBusy] = useState(false)
+  const title = kind === 'event' ? 'Nouveau rendez-vous' : kind === 'task' ? 'Nouvelle tâche' : 'Nouvelle note'
+  const saveText = async (e: FormEvent) => {
+    e.preventDefault(); if (!text.trim()) return
+    setBusy(true)
+    const ok = kind === 'task' ? await act.addTask(text.trim(), due) : await act.addNote(text.trim())
+    setBusy(false); if (ok) onClose()
+  }
+  return (
+    <div className="ct-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="ct-fiche" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="ct-f-head">
+          <span className="ct-label">{title}</span>
+          <button className="ct-icon" aria-label="Fermer" onClick={onClose}><X size={20} strokeWidth={1.8} /></button>
+        </div>
+        <div className="ct-f-body">
+          {kind === 'event' && <EventForm idPrefix="ct-n" submitLabel="Ajouter à l'agenda" onCancel={onClose} onSave={async (row) => { const ok = await act.addEvent(row); if (ok) onClose(); return ok }} />}
+          {kind === 'task' && (
+            <form className="ct-form" autoComplete="off" onSubmit={saveText}>
+              <label className="full" htmlFor="ct-n-task">Tâche<input id="ct-n-task" required autoFocus maxLength={200} value={text} onChange={(e) => setText(e.target.value)} placeholder="Ex. Préparer le Weekly" /></label>
+              <label className="full" htmlFor="ct-n-due">Échéance (facultatif)<input id="ct-n-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} /></label>
+              <div className="foot"><button type="button" className="ct-btn" onClick={onClose}>Annuler</button><button className="ct-btn primary" type="submit" disabled={busy}>{busy ? 'Enregistrement…' : 'Ajouter la tâche'}</button></div>
+            </form>
+          )}
+          {kind === 'note' && (
+            <form style={{ display: 'flex', flexDirection: 'column', gap: 10 }} autoComplete="off" onSubmit={saveText}>
+              <textarea id="ct-n-note" className="ct-note-in" style={{ minHeight: 180 }} autoFocus aria-label="Texte de la note" maxLength={4000} value={text} onChange={(e) => setText(e.target.value)} placeholder="Compte rendu d'appel, idée pour le Weekly…" />
+              <div className="ct-f-foot" style={{ padding: 0, border: 0 }}><button type="button" className="ct-btn" onClick={onClose}>Annuler</button><button className="ct-btn primary" type="submit" disabled={busy}>{busy ? 'Enregistrement…' : 'Enregistrer la note'}</button></div>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 

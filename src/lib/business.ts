@@ -17,13 +17,22 @@ export type TxType = 'achat' | 'vente'
 export interface Contact {
   id: string; nom: string; tel: string; produits: string[]; autres: string; notes: string
   quartier?: string; region?: string; mois?: number[]
-  created_at: string; updated_at: string
+  created_by?: string | null; created_at: string; updated_at: string
 }
 export interface BpTx {
   id: string; type: TxType; contact_id: string | null; contact_nom: string; produit: string
   qte: number; unite: string; prix_u: number; montant: number; jour: string; paiement: string; note: string
-  created_at: string; updated_at: string
+  created_by?: string | null; created_at: string; updated_at: string
 }
+
+/** Les comptes partenaires (Sam-san et Chloé), visibles l'un pour l'autre dans Business Pro uniquement. */
+export interface Partner { user_id: string | null; email: string; label: string | null; full_name: string | null; phone: string | null; has_account: boolean }
+export async function loadPartners(): Promise<Partner[]> {
+  const { data, error } = await supabase.rpc('bp_partners')
+  return error || !Array.isArray(data) ? [] : (data as Partner[])
+}
+export const partnerName = (p: Partner) => p.full_name?.trim() || p.label || p.email.split('@')[0]
+export const initials = (name: string) => name.split(/[\s\-_.()]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?'
 
 export const TABLE: Record<Kind, string> = { fournisseur: 'bp_fournisseurs', client: 'bp_clients' }
 export const kindOf = (t: TxType): Kind => (t === 'achat' ? 'fournisseur' : 'client')

@@ -51,6 +51,8 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 - Thème sombre repris de l'artifact « Carnets fournisseurs », CSS limité à `.bp` / `.bp-glance` dans `src/screens/business.css`.
 - Accès illimité des partenaires : `my_access_v3()` renvoie une fin d'accès au 31/12/2999 pour eux (même signature, marche aussi avec l'APK déjà installée). Chloé n'est pas administratrice. Carte « Partenaire · accès illimité » dans Compte.
 - Tables `bp_fournisseurs`, `bp_clients`, `bp_transactions` (RLS : `is_partner()`). SQL : `supabase/business_pro.sql` — **à exécuter dans Supabase avant de publier la 3.8.0** (sinon l'écran affiche « pas encore activé »).
+- v3.8.1 : en haut de Business Pro, les deux partenaires se voient (nom, téléphone, e-mail, bouton Contacter) et chaque fiche/transaction indique « par … ». Seulement dans cette section. RPC `bp_partners()` (renvoie quelque chose uniquement à un partenaire) : `supabase/business_pro_partenaires.sql`, à exécuter après `business_pro.sql`.
+- v3.8.1 : Carnet de travail — plus de formulaire affiché d'office. Boutons « + Nouveau rendez-vous », « + Nouvelle tâche », « + Nouvelle note » qui ouvrent le formulaire dans une fiche (`AddSheet` dans `Travail.tsx`). Règle de Sam-san pour toutes ses apps : un bouton d'ajout d'abord, le formulaire ensuite.
 
 ## Fichiers clés
 - `src/App.tsx` : ordre des écrans = chargement → version → connexion → verrou → profil → Go Code → carnet.

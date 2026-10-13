@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, Briefcase, ChevronRight, X } from 'lucide-react'
 import './business.css'
 import { supabase } from '../lib/supabase'
+import { useData } from '../lib/data'
 import { useBackHandler } from '../lib/back'
 import { ymd } from '../lib/travail'
 import {
   AUTRES, MOIS, MOIS_LONG, PAIEMENTS, PRODUITS, REGIONS, TABLE, UNITES,
-  allProduits, contactProduits, fmtAr, fmtJour, fmtQ, kindOf, loadBusiness, splitAutres, telIntl, telLocal, toNum, txOf,
+  allProduits, contactProduits, fmtAr, fmtJour, fmtQ, initials, kindOf, loadBusiness, loadPartners, partnerName, splitAutres, telIntl, telLocal, toNum, txOf,
 } from '../lib/business'
-import type { BpTx, Contact, Kind, TxType } from '../lib/business'
+import type { BpTx, Contact, Kind, Partner, TxType } from '../lib/business'
 
 type Tab = Kind | 'tx' | 'bilan'
 type Data = { fournisseurs: Contact[]; clients: Contact[]; txs: BpTx[] }
@@ -29,6 +30,10 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
   const [tx, setTx] = useState<TxDraft | null>(null)
   const [call, setCall] = useState<Contact | null>(null)
   const [toast, setToast] = useState('')
+  const [partners, setPartners] = useState<Partner[]>([])
+  const ctx = useData() as ReturnType<typeof useData> | null
+  const myId = ctx?.session?.user.id ?? ''
+  const who = (id?: string | null) => { if (!id) return ''; if (id === myId) return 'toi'; const p = partners.find((x) => x.user_id === id); return p ? partnerName(p).split(' ')[0] : '' }
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast(''), 2600) }
   const setTab = (t: Tab) => { setTabState(t); try { localStorage.setItem(TAB_KEY, t) } catch { /* ignore */ } }
 
@@ -37,6 +42,7 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
     if (r.missing) { setState('missing'); return }
     if (r.error) { setErrMsg(r.error); setState('error'); return }
     setData({ fournisseurs: r.fournisseurs, clients: r.clients, txs: r.txs }); setState('ready')
+    setPartners(await loadPartners())
   }, [])
   useEffect(() => { reload() }, [reload])
   // Les deux partenaires écrivent : on recharge en revenant sur l'appli
@@ -121,13 +127,15 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
         {tabs.map(([k, l, n]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}{n != null && <span className="k">{n}</span>}</button>)}
       </nav>
 
+      {partners.length > 0 && <Partners list={partners} myId={myId} onCall={setCall} />}
+
       {state === 'missing' && <p className="bp-notice warn">Business Pro n'est pas encore activé sur le serveur.</p>}
       {state === 'error' && <p className="bp-notice err">Le carnet ne se charge pas ({errMsg}). Reviens dans un instant.</p>}
 
       {(tab === 'fournisseur' || tab === 'client') && (
         <ContactList key={tab} kind={tab} items={list(tab)} produits={produits} ready={ready} onOpen={(id) => setFiche({ kind: tab, id })} />
       )}
-      {tab === 'tx' && <TxTab txs={data.txs} produits={produits} nameOf={nameOf} onNew={newTx} onOpen={editTx} ready={ready} />}
+      {tab === 'tx' && <TxTab txs={data.txs} produits={produits} nameOf={nameOf} who={who} onNew={newTx} onOpen={editTx} ready={ready} />}
       {tab === 'bilan' && <Bilan txs={data.txs} />}
 
       <p className="bp-foot">BY <b>NORD DIGITAL</b></p>
@@ -136,7 +144,7 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
       {fiche && (
         <ContactFiche key={`${fiche.kind}-${fiche.id ?? 'new'}`} kind={fiche.kind} contact={fiche.id ? list(fiche.kind).find((c) => c.id === fiche.id) ?? null : null}
           txs={fiche.id ? data.txs.filter((t) => t.contact_id === fiche.id) : []}
-          onClose={() => setFiche(null)} onCall={setCall} onTx={editTx}
+          onClose={() => setFiche(null)} onCall={setCall} onTx={editTx} who={who}
           onNewTx={(id) => newTx(txOf(fiche.kind), id)}
           onSave={async (row) => { const c = await saveContact(fiche.kind, fiche.id, row); if (c && !fiche.id) setFiche({ kind: fiche.kind, id: c.id }); return !!c }}
           onDelete={async () => { if (fiche.id && await delContact(fiche.kind, fiche.id)) setFiche(null) }} />
@@ -144,6 +152,27 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
       {tx && <TxSheet draft={tx} setDraft={setTx} data={data} produits={produits} onClose={() => setTx(null)} onSave={saveTx} onDelete={async (id) => { if (await delTx(id)) setTx(null) }} />}
       {call && <CallSheet c={call} onClose={() => setCall(null)} />}
     </div>
+  )
+}
+
+/* ---------- Les deux partenaires, visibles l'un pour l'autre ici seulement ---------- */
+function Partners({ list, myId, onCall }: { list: Partner[]; myId: string; onCall: (c: Contact) => void }) {
+  return (
+    <section className="bp-partners" aria-label="Partenaires">
+      {list.map((p) => {
+        const name = partnerName(p), me = p.user_id === myId
+        return (
+          <div key={p.email} className="bp-partner">
+            <span className="av">{initials(name)}</span>
+            <span className="tx">
+              <b>{name}{me && <span className="me">toi</span>}</b>
+              <small>{p.has_account ? [p.phone ? telLocal(p.phone) : '', p.email].filter(Boolean).join(' · ') : 'Compte pas encore créé'}</small>
+            </span>
+            {!me && p.phone && <button className="bp-btn sm" onClick={() => onCall({ id: p.email, nom: name, tel: p.phone ?? '', produits: [], autres: '', notes: '', created_at: '', updated_at: '' })}>Contacter</button>}
+          </div>
+        )
+      })}
+    </section>
   )
 }
 
@@ -196,19 +225,19 @@ function ContactList({ kind, items, produits, ready, onOpen }: { kind: Kind; ite
 }
 
 /* ---------- Ligne de transaction ---------- */
-function TxRow({ t, who, onOpen }: { t: BpTx; who?: string; onOpen: () => void }) {
+function TxRow({ t, who, by, onOpen }: { t: BpTx; who?: string; by?: string; onOpen: () => void }) {
   return (
     <button className="bp-tx" onClick={onOpen}>
       <span className="a"><span className={`bp-tag ${t.type}`}>{t.type === 'achat' ? 'Achat' : 'Vente'}</span><span>{t.produit}{who ? ` · ${who}` : ''}</span></span>
       <span className={`m ${t.type}`}>{t.type === 'achat' ? '−' : '+'} {fmtAr(t.montant)}</span>
-      <span className="d">{fmtJour(t.jour)} · {fmtQ(t.qte)} {t.unite} × {fmtAr(t.prix_u)} · {t.paiement}{t.note ? ` · ${t.note}` : ''}</span>
+      <span className="d">{fmtJour(t.jour)} · {fmtQ(t.qte)} {t.unite} × {fmtAr(t.prix_u)} · {t.paiement}{t.note ? ` · ${t.note}` : ''}{by ? ` · par ${by}` : ''}</span>
     </button>
   )
 }
 
 /* ---------- Fiche fournisseur / client ---------- */
-function ContactFiche({ kind, contact, txs, onClose, onSave, onDelete, onCall, onTx, onNewTx }: {
-  kind: Kind; contact: Contact | null; txs: BpTx[]; onClose: () => void; onSave: (row: Partial<Contact>) => Promise<boolean>; onDelete: () => void
+function ContactFiche({ kind, contact, txs, onClose, onSave, onDelete, onCall, onTx, onNewTx, who }: {
+  kind: Kind; contact: Contact | null; txs: BpTx[]; who: (id?: string | null) => string; onClose: () => void; onSave: (row: Partial<Contact>) => Promise<boolean>; onDelete: () => void
   onCall: (c: Contact) => void; onTx: (t: BpTx) => void; onNewTx: (contactId: string) => void
 }) {
   const isF = kind === 'fournisseur'
@@ -277,6 +306,7 @@ function ContactFiche({ kind, contact, txs, onClose, onSave, onDelete, onCall, o
 
           {contact && (
             <>
+              {who(contact.created_by) && <p className="bp-hint">Fiche ajoutée par {who(contact.created_by)} le {fmtJour(contact.created_at.slice(0, 10))}.</p>}
               <div className="bp-sec">
                 <span className="bp-label">Bilan</span>
                 <div className="bp-stats">
@@ -288,7 +318,7 @@ function ContactFiche({ kind, contact, txs, onClose, onSave, onDelete, onCall, o
               <div className="bp-sec">
                 <div className="bp-row"><span className="bp-label">Historique des {isF ? 'achats' : 'ventes'}</span><button className="bp-btn primary sm" onClick={() => onNewTx(contact.id)}>+ {isF ? 'Achat' : 'Vente'}</button></div>
                 <div className="bp-txs">
-                  {sorted.length ? sorted.map((t) => <TxRow key={t.id} t={t} onOpen={() => onTx(t)} />) : <p className="bp-hint">Aucune transaction. Chaque {isF ? 'achat' : 'vente'} enregistré apparaît ici automatiquement.</p>}
+                  {sorted.length ? sorted.map((t) => <TxRow key={t.id} t={t} by={who(t.created_by)} onOpen={() => onTx(t)} />) : <p className="bp-hint">Aucune transaction. Chaque {isF ? 'achat' : 'vente'} enregistré apparaît ici automatiquement.</p>}
                 </div>
               </div>
             </>
@@ -402,7 +432,7 @@ function TxSheet({ draft: d, setDraft, data, produits, onClose, onSave, onDelete
 }
 
 /* ---------- Rubrique Transactions ---------- */
-function TxTab({ txs, produits, nameOf, onNew, onOpen, ready }: { txs: BpTx[]; produits: string[]; nameOf: (t: BpTx) => string; onNew: (t: TxType) => void; onOpen: (t: BpTx) => void; ready: boolean }) {
+function TxTab({ txs, produits, nameOf, who, onNew, onOpen, ready }: { txs: BpTx[]; produits: string[]; nameOf: (t: BpTx) => string; who: (id?: string | null) => string; onNew: (t: TxType) => void; onOpen: (t: BpTx) => void; ready: boolean }) {
   const [type, setType] = useState<'' | TxType>('')
   const [prod, setProd] = useState('')
   const [month, setMonth] = useState('')
@@ -428,7 +458,7 @@ function TxTab({ txs, produits, nameOf, onNew, onOpen, ready }: { txs: BpTx[]; p
         <div className="bp-stat"><div className="l">Ventes − achats</div><div className={`v ${v - a < 0 ? 'neg' : ''}`}>{fmtAr(v - a)}</div></div>
       </div>
       <div className="bp-txs">
-        {shown.length ? shown.map((t) => <TxRow key={t.id} t={t} who={nameOf(t)} onOpen={() => onOpen(t)} />)
+        {shown.length ? shown.map((t) => <TxRow key={t.id} t={t} who={nameOf(t)} by={who(t.created_by)} onOpen={() => onOpen(t)} />)
           : <p className="bp-empty">{txs.length ? 'Aucune transaction pour ces filtres.' : 'Aucune transaction. Ajoute un achat ou une vente avec les boutons ci-dessus.'}</p>}
       </div>
     </section>

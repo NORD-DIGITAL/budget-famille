@@ -147,3 +147,8 @@
 .ct-fiche .ct-form { border: 0; padding: 0; background: transparent; }
 .ct-fiche .ct-form .foot { justify-content: space-between; }
 @media (max-width: 420px) { .ct-dl { grid-template-columns: minmax(0, 1fr); gap: 2px; } .ct-dl dd { margin-bottom: 8px; } }
+
+/* Bouton « + Nouveau … » : ouvre le formulaire dans une fiche (pas de formulaire affiché d'office) */
+.ct-new { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 11px 14px; border: 1px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 15px; cursor: pointer; }
+.ct-new:hover { background: var(--accent); color: var(--on-accent); }
+.ct-new:disabled { opacity: .5; cursor: default; }
