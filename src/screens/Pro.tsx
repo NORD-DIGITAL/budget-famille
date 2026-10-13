@@ -17,7 +17,7 @@ import { NordDigitalPage, loadNd, ndStats } from './NordDigital'
 export type ProView = 'hub' | 'travail' | 'legumes' | 'nd'
 
 /* ---------- Résumés (hub et carte d'accueil) ---------- */
-type Summary = { work: { next: string; todo: number } | null; legumes: { a: number; v: number; saison: number } | null; nd: { enCours: number; reste: number } | null }
+type Summary = { work: { next: string; todo: number } | null; legumes: { a: number; v: number; saison: number } | null; nd: { clientsEnCours: number; prospects: number; reste: number } | null }
 
 function useSummary(projets: Projet[]) {
   const [s, setS] = useState<Summary | null>(null)
@@ -39,7 +39,7 @@ function useSummary(projets: Projet[]) {
         v: b.txs.filter((t) => t.type === 'vente' && t.jour.startsWith(m)).reduce((x, t) => x + t.montant, 0),
         saison: b.fournisseurs.filter((f) => (f.mois ?? []).includes(mo)).length,
       } : null
-      const nd = n && !n.missing && !n.error ? (({ enCours, reste }) => ({ enCours, reste }))(ndStats(n.rows)) : null
+      const nd = n && !n.missing && !n.error ? ndStats(n.clients, n.prospects) : null
       setS({ work, legumes, nd })
     })
     return () => { alive = false }
@@ -97,7 +97,7 @@ export function ProPage({ onBack, initial = 'hub' }: { onBack?: () => void; init
           <button className="bp-proj" onClick={() => setView('nd')}>
             <span className="ic nd"><Rocket size={22} strokeWidth={1.8} /></span>
             <span className="tx"><b>Projet NORD DIGITAL</b>
-              <small>{s?.nd ? <>{s.nd.enCours} en cours · reste <i className="c-sell">{fmtAr(s.nd.reste)}</i> à encaisser</> : 'Suivi des projets clients'}</small></span>
+              <small>{s?.nd ? <>{s.nd.clientsEnCours} client{s.nd.clientsEnCours > 1 ? 's' : ''} en cours · {s.nd.prospects} prospect{s.nd.prospects > 1 ? 's' : ''} · reste <i className="c-sell">{fmtAr(s.nd.reste)}</i></> : 'Clients, prospects et idées'}</small></span>
             <ChevronRight size={18} />
           </button>
         )}
@@ -169,7 +169,7 @@ export function ProGlance({ onOpen }: { onOpen: () => void }) {
         <span className="g">
           {has('legumes') && <span>Achats légumes<b className="buy">{s?.legumes ? fmtAr(s.legumes.a) : '…'}</b></span>}
           {has('legumes') && <span>Ventes légumes<b className="sell">{s?.legumes ? fmtAr(s.legumes.v) : '…'}</b></span>}
-          {has('nord-digital') && <span>Projets ND<b className="leaf">{s?.nd ? `${s.nd.enCours} en cours` : '…'}</b></span>}
+          {has('nord-digital') && <span>Prospects ND<b className="leaf">{s?.nd ? `${s.nd.prospects} en cours` : '…'}</b></span>}
         </span>
       )}
     </button>

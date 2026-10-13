@@ -1,62 +1,100 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowLeft, X } from 'lucide-react'
+import type { ReactNode } from 'react'
+import { ArrowLeft, Mail, Plus, Rocket, Trash2, X } from 'lucide-react'
 import './business.css'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
 import { useBackHandler } from '../lib/back'
-import { isMissingTable, ymd } from '../lib/travail'
-import { fmtAr, fmtJour, loadPartners, partnerName, telIntl, telLocal, toNum } from '../lib/business'
+import { isMissingTable } from '../lib/travail'
+import { fmtAr, fmtJour, loadPartners, partnerName, telIntl, toNum } from '../lib/business'
 import type { Contact, Partner } from '../lib/business'
 import { CallSheet, Partners } from './Business'
 
-/* ---------- Projet NORD DIGITAL : suivi des projets clients (Sam-san + Andrinirina) ---------- */
+/* ---------- Projet NORD DIGITAL : Clients, Prospects, Idées (Sam-san + Andrinirina) ---------- */
 
-export type Statut = 'devis' | 'en_cours' | 'livre' | 'annule'
-export interface NdProjet {
-  id: string; client: string; tel: string; type: string; titre: string; statut: Statut
-  montant: number; acompte: number; echeance: string | null; notes: string
+type Pay = 'abonnement' | 'cash'
+type TypeClient = 'GP' | 'PRO'
+export interface NdClient {
+  id: string; nom: string; email: string; tel: string; activite: string; type_client: TypeClient
+  hebergement: 'nord-digital' | 'autre'; hebergement_autre: string; domaine: string
+  date_conception: string | null; date_deploiement: string | null; premier_paiement: string | null; premier_paiement_montant: number
+  type_paiement: Pay; mensualite: number; abo_statut: 'paye' | 'impaye'
+  cash_mode: 'nette' | 'echelonne'; montant_total: number; deja_paye: number; cash_statut: 'paye' | 'en_attente'
+  statut: 'en_cours' | 'termine' | 'vendu'; notes: string
   created_by?: string | null; created_at: string; updated_at: string
 }
-export const TYPES = ['Site web', 'Catalogue PDF', 'Plateforme / App', 'Vidéo promo', 'Logo / design', 'Autre']
-export const STATUTS: [Statut, string][] = [['devis', 'Devis'], ['en_cours', 'En cours'], ['livre', 'Livré'], ['annule', 'Annulé']]
-const statutLabel = (s: Statut) => STATUTS.find(([k]) => k === s)?.[1] ?? s
-export const reste = (p: NdProjet) => (p.statut === 'annule' ? 0 : Math.max(0, p.montant - p.acompte))
+export interface NdProspect {
+  id: string; nom: string; email: string; tel: string; activite: string; type_client: TypeClient; date_conception: string | null
+  idee: string; type_paiement: Pay; taches: { t: string; ok: boolean }[]; statut: 'en_cours' | 'annule'
+  created_by?: string | null; created_at: string; updated_at: string
+}
+export interface NdIdee {
+  id: string; secteur: string; solution: string; type_client: TypeClient | 'GP et PRO'; type_paiement: Pay; note: string
+  created_by?: string | null; created_at: string; updated_at: string
+}
+
+export const SECTEURS = ['Commerce / boutique', 'Restauration', 'Santé (pharmacie, cabinet)', 'Garage / auto', 'Immobilier', 'Éducation / école', 'Beauté / bien-être', 'Agriculture / légumes', 'Artisans / services', 'Transport / livraison', 'Événementiel', 'Association / ONG', 'Autre']
+export const SOLUTIONS = ['Site vitrine', 'Catalogue PDF + WhatsApp', 'Boutique en ligne', 'Plateforme de gestion (caisse, stock…)', 'App mobile', 'Prise de rendez-vous', 'Vidéo promo', 'Autre']
+const CLIENT_STATUTS: [NdClient['statut'], string][] = [['en_cours', 'En cours'], ['termine', 'Terminé'], ['vendu', 'Vendu']]
+
+/** Ce qu'un client doit encore : mensualité impayée (abonnement) ou reste du cash. */
+export function resteClient(c: NdClient) {
+  if (c.type_paiement === 'abonnement') return c.abo_statut === 'impaye' ? c.mensualite : 0
+  if (c.cash_statut === 'paye') return 0
+  return c.cash_mode === 'echelonne' ? Math.max(0, c.montant_total - c.deja_paye) : c.montant_total
+}
+const payLabel = (c: NdClient) => c.type_paiement === 'abonnement'
+  ? `Abonnement ${fmtAr(c.mensualite)}/mois · ${c.abo_statut === 'paye' ? 'payé' : 'pas encore payé'}`
+  : `Cash ${c.cash_mode === 'echelonne' ? 'échelonné' : 'net'} · ${resteClient(c) > 0 ? `reste ${fmtAr(resteClient(c))}` : 'payé'}`
 
 export async function loadNd() {
-  const { data, error } = await supabase.from('nd_projets').select('*').order('updated_at', { ascending: false }).limit(1000)
-  const rows = ((data ?? []) as NdProjet[]).map((p) => ({ ...p, montant: Number(p.montant) || 0, acompte: Number(p.acompte) || 0 }))
-  return { rows, missing: isMissingTable(error), error: error && !isMissingTable(error) ? error.message : '' }
+  const num = (c: NdClient) => ({ ...c, mensualite: Number(c.mensualite) || 0, montant_total: Number(c.montant_total) || 0, deja_paye: Number(c.deja_paye) || 0, premier_paiement_montant: Number(c.premier_paiement_montant) || 0 })
+  const [c, p, i] = await Promise.all([
+    supabase.from('nd_clients').select('*').order('updated_at', { ascending: false }).limit(1000),
+    supabase.from('nd_prospects').select('*').order('updated_at', { ascending: false }).limit(1000),
+    supabase.from('nd_idees').select('*').order('updated_at', { ascending: false }).limit(1000),
+  ])
+  const err = c.error ?? p.error ?? i.error
+  return {
+    clients: ((c.data ?? []) as NdClient[]).map(num), prospects: (p.data ?? []) as NdProspect[], idees: (i.data ?? []) as NdIdee[],
+    missing: isMissingTable(err), error: err && !isMissingTable(err) ? err.message : '',
+  }
 }
-export function ndStats(rows: NdProjet[]) {
-  return { enCours: rows.filter((p) => p.statut === 'en_cours').length, devis: rows.filter((p) => p.statut === 'devis').length, reste: rows.reduce((s, p) => s + reste(p), 0) }
+export function ndStats(clients: NdClient[], prospects: NdProspect[]) {
+  return {
+    clientsEnCours: clients.filter((c) => c.statut === 'en_cours').length,
+    prospects: prospects.filter((p) => p.statut === 'en_cours').length,
+    reste: clients.reduce((s, c) => s + resteClient(c), 0),
+  }
 }
 
-type Draft = { client: string; tel: string; type: string; titre: string; statut: Statut; montant: string; acompte: string; echeance: string; notes: string }
-const toDraft = (p?: NdProjet | null): Draft => ({
-  client: p?.client ?? '', tel: p?.tel ?? '', type: p?.type ?? TYPES[0], titre: p?.titre ?? '', statut: p?.statut ?? 'devis',
-  montant: p?.montant ? String(p.montant) : '', acompte: p?.acompte ? String(p.acompte) : '', echeance: p?.echeance ?? '', notes: p?.notes ?? '',
-})
+type Tab = 'clients' | 'prospects' | 'idees'
+type Fiche = { kind: 'client' | 'prospect' | 'idee'; id: string | null }
+const TABLE = { client: 'nd_clients', prospect: 'nd_prospects', idee: 'nd_idees' } as const
 
 export function NordDigitalPage({ onBack }: { onBack: () => void }) {
-  const [rows, setRows] = useState<NdProjet[]>([])
+  const [clients, setClients] = useState<NdClient[]>([])
+  const [prospects, setProspects] = useState<NdProspect[]>([])
+  const [idees, setIdees] = useState<NdIdee[]>([])
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
   const [errMsg, setErrMsg] = useState('')
   const [partners, setPartners] = useState<Partner[]>([])
-  const [filter, setFilter] = useState<'' | Statut>('')
+  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('bf-nd-tab') as Tab) || 'clients' } catch { return 'clients' } })
   const [q, setQ] = useState('')
-  const [fiche, setFiche] = useState<{ id: string | null } | null>(null)
+  const [fiche, setFiche] = useState<Fiche | null>(null)
   const [call, setCall] = useState<Contact | null>(null)
   const [toast, setToast] = useState('')
   const flash = (m: string) => { setToast(m); window.setTimeout(() => setToast(''), 2600) }
   const ctx = useData() as ReturnType<typeof useData> | null
   const myId = ctx?.session?.user.id ?? ''
   const who = (id?: string | null) => { if (!id) return ''; if (id === myId) return 'toi'; const p = partners.find((x) => x.user_id === id); return p ? partnerName(p).split(' ')[0] : '' }
+  const go = (t: Tab) => { setTab(t); setQ(''); try { localStorage.setItem('bf-nd-tab', t) } catch { /* ignore */ } }
 
   const reload = useCallback(async () => {
     const r = await loadNd()
     if (r.missing) { setState('missing'); return }
     if (r.error) { setErrMsg(r.error); setState('error'); return }
-    setRows(r.rows); setState('ready')
+    setClients(r.clients); setProspects(r.prospects); setIdees(r.idees); setState('ready')
     setPartners(await loadPartners('nord-digital'))
   }, [])
   useEffect(() => { reload() }, [reload])
@@ -68,28 +106,40 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
   useBackHandler(!!fiche, () => setFiche(null))
   useBackHandler(!!call, () => setCall(null))
 
-  const save = async (id: string | null, d: Draft) => {
-    const row = { client: d.client.trim(), tel: d.tel.trim(), type: d.type, titre: d.titre.trim(), statut: d.statut, montant: toNum(d.montant), acompte: toNum(d.acompte), echeance: d.echeance || null, notes: d.notes, updated_at: new Date().toISOString() }
-    const qy = id ? supabase.from('nd_projets').update(row).eq('id', id) : supabase.from('nd_projets').insert(row)
+  /** Enregistre une fiche (création ou modification) et met la liste à jour. */
+  const save = async <T extends { id: string }>(kind: Fiche['kind'], id: string | null, row: Record<string, unknown>): Promise<T | null> => {
+    const body = { ...row, updated_at: new Date().toISOString() }
+    const qy = id ? supabase.from(TABLE[kind]).update(body).eq('id', id) : supabase.from(TABLE[kind]).insert(body)
     const { data, error } = await qy.select().single()
     if (error) { flash("Impossible d'enregistrer. Vérifie ta connexion."); return null }
-    const p = { ...(data as NdProjet), montant: row.montant, acompte: row.acompte }
-    setRows((l) => (id ? l.map((x) => (x.id === id ? p : x)) : [p, ...l]))
-    flash(id ? 'Projet enregistré' : 'Projet client ajouté')
-    return p
+    const saved = data as T
+    const upd = <X extends { id: string }>(l: X[]) => (id ? l.map((x) => (x.id === id ? (saved as unknown as X) : x)) : [saved as unknown as X, ...l])
+    if (kind === 'client') setClients((l) => upd(l).map((c) => ({ ...c, mensualite: Number(c.mensualite) || 0, montant_total: Number(c.montant_total) || 0, deja_paye: Number(c.deja_paye) || 0, premier_paiement_montant: Number(c.premier_paiement_montant) || 0 })))
+    if (kind === 'prospect') setProspects(upd)
+    if (kind === 'idee') setIdees(upd)
+    flash(id ? 'Enregistré' : kind === 'client' ? 'Client ajouté' : kind === 'prospect' ? 'Prospect ajouté' : 'Idée ajoutée')
+    if (!id) setFiche({ kind, id: saved.id })
+    return saved
   }
-  const del = async (id: string) => {
-    const { error } = await supabase.from('nd_projets').delete().eq('id', id)
+  const del = async (kind: Fiche['kind'], id: string) => {
+    const { error } = await supabase.from(TABLE[kind]).delete().eq('id', id)
     if (error) { flash('Suppression impossible. Vérifie ta connexion.'); return }
-    setRows((l) => l.filter((x) => x.id !== id)); setFiche(null); flash('Projet supprimé')
+    if (kind === 'client') setClients((l) => l.filter((x) => x.id !== id))
+    if (kind === 'prospect') setProspects((l) => l.filter((x) => x.id !== id))
+    if (kind === 'idee') setIdees((l) => l.filter((x) => x.id !== id))
+    setFiche(null); flash('Supprimé')
+  }
+  const deploy = async (id: string) => {
+    const { data, error } = await supabase.rpc('nd_deploy_prospect', { p_id: id })
+    if (error) { flash('Déploiement impossible. Vérifie ta connexion.'); return }
+    await reload(); go('clients'); setFiche({ kind: 'client', id: data as string }); flash('Prospect déployé : il est maintenant dans Clients')
   }
 
-  const today = ymd(new Date())
-  const st = ndStats(rows)
-  const qq = q.trim().toLowerCase()
-  const shown = rows.filter((p) => (!filter || p.statut === filter) && (!qq || `${p.client} ${p.titre} ${p.type} ${p.tel}`.toLowerCase().includes(qq)))
-    .sort((a, b) => ['en_cours', 'devis', 'livre', 'annule'].indexOf(a.statut) - ['en_cours', 'devis', 'livre', 'annule'].indexOf(b.statut) || (a.echeance ?? '9999').localeCompare(b.echeance ?? '9999'))
+  const st = ndStats(clients, prospects)
   const ready = state === 'ready'
+  const qq = q.trim().toLowerCase()
+  const match = (...xs: (string | null | undefined)[]) => !qq || xs.join(' ').toLowerCase().includes(qq)
+  const order = <T extends { statut: string }>(keys: string[]) => (a: T, b: T) => keys.indexOf(a.statut) - keys.indexOf(b.statut)
 
   return (
     <div className="bp">
@@ -99,91 +149,285 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
         <span className="bp-sync"><span className={`bp-dot ${ready ? 'on' : state === 'loading' ? 'busy' : 'err'}`} />{ready ? 'À jour' : state === 'loading' ? 'Chargement…' : 'Hors service'}</span>
       </header>
 
+      <nav className="bp-space" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }} aria-label="Rubriques">
+        {([['clients', 'Clients', clients.length], ['prospects', 'Prospects', prospects.filter((p) => p.statut === 'en_cours').length], ['idees', 'Idées', idees.length]] as [Tab, string, number][]).map(([k, l, n]) =>
+          <button key={k} className={tab === k ? 'on' : ''} onClick={() => go(k)}>{l}<span className="k">{n}</span></button>)}
+      </nav>
+
       {partners.length > 0 && <Partners list={partners} myId={myId} onCall={setCall} />}
       {state === 'missing' && <p className="bp-notice warn">Le Projet NORD DIGITAL n'est pas encore activé sur le serveur.</p>}
       {state === 'error' && <p className="bp-notice err">Le suivi ne se charge pas ({errMsg}). Reviens dans un instant.</p>}
 
       <section className="bp-panel">
-        <div className="bp-stats">
-          <div className="bp-stat"><div className="l">En cours</div><div className="v buy">{st.enCours}</div></div>
-          <div className="bp-stat"><div className="l">Devis</div><div className="v">{st.devis}</div></div>
-          <div className="bp-stat"><div className="l">Reste à encaisser</div><div className="v sell">{fmtAr(st.reste)}</div></div>
-        </div>
-        <button className="bp-btn primary" disabled={!ready} onClick={() => setFiche({ id: null })}>+ Nouveau projet client</button>
-        <input className="bp-in" type="search" placeholder="Rechercher un client, un projet…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher" />
-        <div className="bp-seg" style={{ flexWrap: 'wrap' }}>
-          {([['', 'Tous'], ...STATUTS] as ['' | Statut, string][]).map(([k, l]) => <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(k)}>{l}</button>)}
-        </div>
+        {tab === 'clients' && (
+          <div className="bp-stats">
+            <div className="bp-stat"><div className="l">En cours</div><div className="v buy">{st.clientsEnCours}</div></div>
+            <div className="bp-stat"><div className="l">Clients</div><div className="v">{clients.length}</div></div>
+            <div className="bp-stat"><div className="l">Reste à encaisser</div><div className="v sell">{fmtAr(st.reste)}</div></div>
+          </div>
+        )}
+        <button className="bp-btn primary" disabled={!ready} onClick={() => setFiche({ kind: tab === 'clients' ? 'client' : tab === 'prospects' ? 'prospect' : 'idee', id: null })}>
+          + {tab === 'clients' ? 'Nouveau client' : tab === 'prospects' ? 'Nouveau prospect' : 'Nouvelle idée'}
+        </button>
+        <input className="bp-in" type="search" placeholder="Rechercher…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher" />
         <div className="bp-list">
-          {!ready ? <p className="bp-empty">Chargement…</p>
-            : !shown.length ? <p className="bp-empty">{rows.length ? 'Aucun projet pour ces filtres.' : 'Aucun projet client pour l\'instant. Touche « + Nouveau projet client » pour ajouter le premier.'}</p>
-            : shown.map((p) => {
-              const late = p.echeance && p.echeance < today && (p.statut === 'devis' || p.statut === 'en_cours')
+          {!ready && <p className="bp-empty">Chargement…</p>}
+          {ready && tab === 'clients' && (() => {
+            const l = clients.filter((c) => match(c.nom, c.activite, c.domaine, c.email, c.tel)).sort(order(['en_cours', 'termine', 'vendu']))
+            return l.length ? l.map((c) => (
+              <button key={c.id} className="bp-item" onClick={() => setFiche({ kind: 'client', id: c.id })}>
+                <span className="n">{c.nom}{c.activite ? ` · ${c.activite}` : ''}</span>
+                <span className={`nd-st ${c.statut}`}>{CLIENT_STATUTS.find(([k]) => k === c.statut)?.[1]}</span>
+                <span className="s">{c.type_client} · {payLabel(c)}{c.domaine ? ` · ${c.domaine}` : ''}{who(c.created_by) ? ` · par ${who(c.created_by)}` : ''}</span>
+              </button>
+            )) : <p className="bp-empty">{clients.length ? 'Aucun résultat.' : 'Aucun client. Ajoute-en un, ou déploie un prospect.'}</p>
+          })()}
+          {ready && tab === 'prospects' && (() => {
+            const l = prospects.filter((p) => match(p.nom, p.activite, p.idee, p.email, p.tel)).sort(order(['en_cours', 'annule']))
+            return l.length ? l.map((p) => {
+              const done = p.taches.filter((t) => t.ok).length
               return (
-                <button key={p.id} className="bp-item" onClick={() => setFiche({ id: p.id })}>
-                  <span className="n">{p.client}{p.titre ? ` · ${p.titre}` : ''}</span>
-                  <span className={`nd-st ${p.statut}`}>{statutLabel(p.statut)}</span>
-                  <span className="s">
-                    {p.type} · {fmtAr(p.montant)}{reste(p) > 0 ? ` · reste ${fmtAr(reste(p))}` : p.montant > 0 && p.statut !== 'annule' ? ' · payé' : ''}
-                    {p.echeance ? <> · <span className={late ? 'c-neg' : ''}>pour le {fmtJour(p.echeance)}</span></> : null}
-                    {who(p.created_by) ? ` · par ${who(p.created_by)}` : ''}
-                  </span>
+                <button key={p.id} className="bp-item" onClick={() => setFiche({ kind: 'prospect', id: p.id })}>
+                  <span className="n">{p.nom}{p.activite ? ` · ${p.activite}` : ''}</span>
+                  <span className={`nd-st ${p.statut}`}>{p.statut === 'en_cours' ? 'En cours' : 'Annulé'}</span>
+                  <span className="s">{p.type_client} · {p.type_paiement === 'abonnement' ? 'Abonnement' : 'Cash'}{p.taches.length ? ` · tâches ${done}/${p.taches.length}` : ''}{p.date_conception ? ` · conception ${fmtJour(p.date_conception)}` : ''}{who(p.created_by) ? ` · par ${who(p.created_by)}` : ''}</span>
                 </button>
               )
-            })}
+            }) : <p className="bp-empty">{prospects.length ? 'Aucun résultat.' : 'Aucun prospect pour l\'instant.'}</p>
+          })()}
+          {ready && tab === 'idees' && (() => {
+            const l = idees.filter((i) => match(i.secteur, i.solution, i.note))
+            return l.length ? l.map((i) => (
+              <button key={i.id} className="bp-item" onClick={() => setFiche({ kind: 'idee', id: i.id })}>
+                <span className="n">{i.secteur}{i.solution ? ` · ${i.solution}` : ''}</span>
+                <span className="nd-st">{i.type_client}</span>
+                <span className="s">{i.type_paiement === 'abonnement' ? 'Abonnement' : 'Cash'}{i.note ? ` · ${i.note.split('\n')[0]}` : ''}</span>
+              </button>
+            )) : <p className="bp-empty">{idees.length ? 'Aucun résultat.' : 'Aucune idée notée. Garde ici tes idées de projets par secteur.'}</p>
+          })()}
         </div>
       </section>
 
       <p className="bp-foot">BY <b>NORD DIGITAL</b></p>
       {toast && <div className="bp-toast" role="status">{toast}</div>}
-      {fiche && <NdFiche key={fiche.id ?? 'new'} p={fiche.id ? rows.find((x) => x.id === fiche.id) ?? null : null} onClose={() => setFiche(null)} onCall={setCall}
-        onSave={async (d) => { const p = await save(fiche.id, d); if (p && !fiche.id) setFiche({ id: p.id }); return !!p }} onDelete={() => fiche.id && del(fiche.id)} />}
+
+      {fiche?.kind === 'client' && <ClientFiche key={fiche.id ?? 'new'} c={fiche.id ? clients.find((x) => x.id === fiche.id) ?? null : null} by={who} onClose={() => setFiche(null)} onCall={setCall}
+        onSave={(row) => save('client', fiche.id, row)} onDelete={() => fiche.id && del('client', fiche.id)} />}
+      {fiche?.kind === 'prospect' && <ProspectFiche key={fiche.id ?? 'new'} p={fiche.id ? prospects.find((x) => x.id === fiche.id) ?? null : null} onClose={() => setFiche(null)} onCall={setCall}
+        onSave={(row) => save('prospect', fiche.id, row)} onDelete={() => fiche.id && del('prospect', fiche.id)} onDeploy={() => fiche.id && deploy(fiche.id)} />}
+      {fiche?.kind === 'idee' && <IdeeFiche key={fiche.id ?? 'new'} i={fiche.id ? idees.find((x) => x.id === fiche.id) ?? null : null} onClose={() => setFiche(null)}
+        onSave={(row) => save('idee', fiche.id, row)} onDelete={() => fiche.id && del('idee', fiche.id)} />}
       {call && <CallSheet c={call} onClose={() => setCall(null)} />}
     </div>
   )
 }
 
-function NdFiche({ p, onClose, onSave, onDelete, onCall }: { p: NdProjet | null; onClose: () => void; onSave: (d: Draft) => Promise<boolean>; onDelete: () => void; onCall: (c: Contact) => void }) {
-  const [d, setD] = useState<Draft>(() => toDraft(p))
-  const [busy, setBusy] = useState(false)
-  const [armed, setArmed] = useState(false)
-  const dirty = JSON.stringify(d) !== JSON.stringify(toDraft(p))
-  const r = Math.max(0, toNum(d.montant) - toNum(d.acompte))
-  const set = (x: Partial<Draft>) => setD({ ...d, ...x })
+/* ---------- Petits éléments communs ---------- */
+function Seg<T extends string>({ value, options, onChange }: { value: T; options: [T, string][]; onChange: (v: T) => void }) {
+  return <div className="bp-seg" style={{ flexWrap: 'wrap' }}>{options.map(([k, l]) => <button type="button" key={k} className={value === k ? 'on' : ''} onClick={() => onChange(k)}>{l}</button>)}</div>
+}
+function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="bp-sec"><span className="bp-label">{label}</span>{children}</div> }
+
+/** E-mail et téléphone, avec boutons pour écrire ou appeler / WhatsApp. */
+function ContactFields({ nom, email, tel, set, onCall }: { nom: string; email: string; tel: string; set: (x: { email?: string; tel?: string }) => void; onCall: (c: Contact) => void }) {
+  return (
+    <div className="bp-two">
+      <div className="bp-fld">Téléphone
+        <div className="bp-telrow">
+          <input className="bp-in mono" inputMode="tel" placeholder="034 00 000 00" value={tel} onChange={(e) => set({ tel: e.target.value })} aria-label="Téléphone" />
+          <button className="bp-btn sm" type="button" disabled={!telIntl(tel)} onClick={() => onCall({ id: 'nd', nom, tel, produits: [], autres: '', notes: '', created_at: '', updated_at: '' })}>Contacter</button>
+        </div>
+      </div>
+      <div className="bp-fld">E-mail
+        <div className="bp-telrow">
+          <input className="bp-in" type="email" inputMode="email" placeholder="client@exemple.mg" value={email} onChange={(e) => set({ email: e.target.value })} aria-label="E-mail" />
+          {/^\S+@\S+\.\S+$/.test(email.trim())
+            ? <a className="bp-btn sm" href={`mailto:${email.trim()}`} aria-label="Écrire un e-mail"><Mail size={16} /></a>
+            : <button className="bp-btn sm" type="button" disabled aria-label="Écrire un e-mail"><Mail size={16} /></button>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Sheet({ title, onClose, onSubmit, foot, children }: { title: string; onClose: () => void; onSubmit: () => void; foot: ReactNode; children: ReactNode }) {
   return (
     <div className="bp-ov" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <form className="bp-sheet" role="dialog" aria-modal="true" aria-label="Projet client" onSubmit={async (e) => { e.preventDefault(); if (!d.client.trim()) return; setBusy(true); await onSave(d); setBusy(false) }}>
-        <div className="bp-sh-head"><h2>{p ? 'Projet client' : 'Nouveau projet client'}</h2><button type="button" className="bp-iconbtn" aria-label="Fermer" onClick={onClose}><X size={22} /></button></div>
-        <div className="bp-sh-body">
-          <input className="bp-title-in" placeholder="Nom du client" value={d.client} onChange={(e) => set({ client: e.target.value })} autoFocus={!p} aria-label="Client" required />
-          <div className="bp-two">
-            <label className="bp-fld">Type<select className="bp-in" value={d.type} onChange={(e) => set({ type: e.target.value })}>{TYPES.map((t) => <option key={t}>{t}</option>)}</select></label>
-            <div className="bp-fld">Téléphone
-              <div className="bp-telrow">
-                <input className="bp-in mono" inputMode="tel" placeholder="034 00 000 00" value={d.tel} onChange={(e) => set({ tel: e.target.value })} aria-label="Téléphone" />
-                <button className="bp-btn sm" type="button" disabled={!telIntl(d.tel)} onClick={() => onCall({ id: p?.id ?? 'new', nom: d.client, tel: d.tel, produits: [], autres: '', notes: '', created_at: '', updated_at: '' })}>Contacter</button>
-              </div>
-            </div>
-          </div>
-          <label className="bp-fld">Projet<input className="bp-in" placeholder="ex. Site vitrine + catalogue WhatsApp" value={d.titre} onChange={(e) => set({ titre: e.target.value })} /></label>
-          <div className="bp-sec">
-            <span className="bp-label">Statut</span>
-            <div className="bp-seg" style={{ flexWrap: 'wrap' }}>{STATUTS.map(([k, l]) => <button type="button" key={k} className={d.statut === k ? 'on' : ''} onClick={() => set({ statut: k })}>{l}</button>)}</div>
-          </div>
-          <div className="bp-two">
-            <label className="bp-fld">Montant (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.montant} onChange={(e) => set({ montant: e.target.value })} /></label>
-            <label className="bp-fld">Déjà payé (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.acompte} onChange={(e) => set({ acompte: e.target.value })} /></label>
-          </div>
-          <p className="bp-hint">{toNum(d.montant) > 0 ? (r > 0 ? `Reste à payer : ${fmtAr(r)}` : 'Entièrement payé.') : 'Indique le montant du devis.'}</p>
-          <label className="bp-fld">Échéance de livraison<input className="bp-in" type="date" value={d.echeance} onChange={(e) => set({ echeance: e.target.value })} /></label>
-          <label className="bp-fld">Notes<textarea className="bp-in" placeholder="Demandes du client, accès, liens…" value={d.notes} onChange={(e) => set({ notes: e.target.value })} /></label>
-          {p && <p className="bp-hint">Créé le {fmtJour(p.created_at.slice(0, 10))}{p.tel ? ` · ${telLocal(p.tel)}` : ''}</p>}
-        </div>
-        <div className="bp-sh-foot">
-          {p ? <button type="button" className={`bp-btn danger sm${armed ? ' armed' : ''}`} onClick={() => { if (armed) onDelete(); else { setArmed(true); window.setTimeout(() => setArmed(false), 4000) } }}>{armed ? 'Confirmer la suppression' : 'Supprimer'}</button> : <span />}
-          <button type="submit" className="bp-btn primary" disabled={busy || !dirty || !d.client.trim()}>{busy ? 'Enregistrement…' : p ? (dirty ? 'Enregistrer' : 'Enregistré') : 'Ajouter'}</button>
-        </div>
+      <form className="bp-sheet" role="dialog" aria-modal="true" aria-label={title} onSubmit={(e) => { e.preventDefault(); onSubmit() }}>
+        <div className="bp-sh-head"><h2>{title}</h2><button type="button" className="bp-iconbtn" aria-label="Fermer" onClick={onClose}><X size={22} /></button></div>
+        <div className="bp-sh-body">{children}</div>
+        <div className="bp-sh-foot">{foot}</div>
       </form>
     </div>
+  )
+}
+function DelBtn({ onDelete, label = 'Supprimer' }: { onDelete: () => void; label?: string }) {
+  const [armed, setArmed] = useState(false)
+  return <button type="button" className={`bp-btn danger sm${armed ? ' armed' : ''}`} onClick={() => { if (armed) onDelete(); else { setArmed(true); window.setTimeout(() => setArmed(false), 4000) } }}>{armed ? 'Confirmer la suppression' : label}</button>
+}
+function useDraft<T>(init: T) {
+  const [d, setD] = useState(init)
+  const [base] = useState(() => JSON.stringify(init))
+  const [busy, setBusy] = useState(false)
+  return { d, set: (x: Partial<T>) => setD((o) => ({ ...o, ...x })), dirty: JSON.stringify(d) !== base, busy, setBusy }
+}
+const SaveBtn = ({ isNew, dirty, busy, ok }: { isNew: boolean; dirty: boolean; busy: boolean; ok: boolean }) =>
+  <button type="submit" className="bp-btn primary" disabled={busy || !dirty || !ok}>{busy ? 'Enregistrement…' : isNew ? 'Ajouter' : dirty ? 'Enregistrer' : 'Enregistré'}</button>
+
+/* ---------- Fiche client ---------- */
+function ClientFiche({ c, by, onClose, onSave, onDelete, onCall }: { c: NdClient | null; by: (id?: string | null) => string; onClose: () => void; onSave: (row: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onCall: (c: Contact) => void }) {
+  const f = useDraft({
+    nom: c?.nom ?? '', email: c?.email ?? '', tel: c?.tel ?? '', activite: c?.activite ?? '', type_client: (c?.type_client ?? 'GP') as TypeClient,
+    hebergement: c?.hebergement ?? 'nord-digital', hebergement_autre: c?.hebergement_autre ?? '', domaine: c?.domaine ?? '',
+    date_conception: c?.date_conception ?? '', date_deploiement: c?.date_deploiement ?? '', premier_paiement: c?.premier_paiement ?? '', premier_paiement_montant: c?.premier_paiement_montant ? String(c.premier_paiement_montant) : '',
+    type_paiement: (c?.type_paiement ?? 'cash') as Pay, mensualite: c?.mensualite ? String(c.mensualite) : '', abo_statut: c?.abo_statut ?? 'impaye',
+    cash_mode: c?.cash_mode ?? 'nette', montant_total: c?.montant_total ? String(c.montant_total) : '', deja_paye: c?.deja_paye ? String(c.deja_paye) : '', cash_statut: c?.cash_statut ?? 'en_attente',
+    statut: c?.statut ?? 'en_cours', notes: c?.notes ?? '',
+  })
+  const d = f.d
+  const reste = Math.max(0, toNum(d.montant_total) - toNum(d.deja_paye))
+  const submit = async () => {
+    if (!d.nom.trim()) return
+    f.setBusy(true)
+    await onSave({
+      ...d, nom: d.nom.trim(), email: d.email.trim(), tel: d.tel.trim(), activite: d.activite.trim(), domaine: d.domaine.trim(), hebergement_autre: d.hebergement === 'autre' ? d.hebergement_autre.trim() : '',
+      date_conception: d.date_conception || null, date_deploiement: d.date_deploiement || null, premier_paiement: d.premier_paiement || null,
+      premier_paiement_montant: toNum(d.premier_paiement_montant), mensualite: toNum(d.mensualite), montant_total: toNum(d.montant_total), deja_paye: toNum(d.deja_paye),
+    })
+    f.setBusy(false)
+  }
+  return (
+    <Sheet title={c ? 'Client' : 'Nouveau client'} onClose={onClose} onSubmit={submit}
+      foot={<>{c ? <DelBtn onDelete={onDelete} /> : <span />}<SaveBtn isNew={!c} dirty={f.dirty} busy={f.busy} ok={!!d.nom.trim()} /></>}>
+      <input className="bp-title-in" placeholder="Nom du client" value={d.nom} onChange={(e) => f.set({ nom: e.target.value })} autoFocus={!c} aria-label="Nom" />
+      <ContactFields nom={d.nom} email={d.email} tel={d.tel} set={f.set} onCall={onCall} />
+      <label className="bp-fld">Activité (projet)<input className="bp-in" placeholder="ex. Pharmacie · caisse et stock" value={d.activite} onChange={(e) => f.set({ activite: e.target.value })} /></label>
+      <div className="bp-two">
+        <Field label="Type client"><Seg value={d.type_client} options={[['GP', 'GP'], ['PRO', 'PRO']]} onChange={(v) => f.set({ type_client: v })} /></Field>
+        <Field label="Statut global"><Seg value={d.statut} options={CLIENT_STATUTS} onChange={(v) => f.set({ statut: v })} /></Field>
+      </div>
+
+      <Field label="Hébergement">
+        <Seg value={d.hebergement} options={[['nord-digital', 'NORD DIGITAL'], ['autre', 'Autre']]} onChange={(v) => f.set({ hebergement: v })} />
+        {d.hebergement === 'autre' && <input className="bp-in" placeholder="Préciser (ex. Hostinger, chez le client…)" value={d.hebergement_autre} onChange={(e) => f.set({ hebergement_autre: e.target.value })} />}
+      </Field>
+      <label className="bp-fld">Nom de domaine<input className="bp-in mono" placeholder="exemple.mg" value={d.domaine} onChange={(e) => f.set({ domaine: e.target.value })} /></label>
+
+      <span className="bp-label" style={{ marginTop: 4 }}>Projet</span>
+      <div className="bp-two">
+        <label className="bp-fld">Date de conception<input className="bp-in" type="date" value={d.date_conception} onChange={(e) => f.set({ date_conception: e.target.value })} /></label>
+        <label className="bp-fld">Date de déploiement<input className="bp-in" type="date" value={d.date_deploiement} onChange={(e) => f.set({ date_deploiement: e.target.value })} /></label>
+      </div>
+      <div className="bp-two">
+        <label className="bp-fld">Premier paiement (date)<input className="bp-in" type="date" value={d.premier_paiement} onChange={(e) => f.set({ premier_paiement: e.target.value })} /></label>
+        <label className="bp-fld">Premier paiement (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.premier_paiement_montant} onChange={(e) => f.set({ premier_paiement_montant: e.target.value })} /></label>
+      </div>
+      <Field label="Type de paiement">
+        <Seg value={d.type_paiement} options={[['abonnement', 'Abonnement'], ['cash', 'Cash']]} onChange={(v) => f.set({ type_paiement: v })} />
+      </Field>
+      {d.type_paiement === 'abonnement' ? (
+        <div className="bp-two">
+          <label className="bp-fld">Mensualité (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.mensualite} onChange={(e) => f.set({ mensualite: e.target.value })} /></label>
+          <Field label="Ce mois"><Seg value={d.abo_statut} options={[['paye', 'Payé'], ['impaye', 'Pas encore']]} onChange={(v) => f.set({ abo_statut: v })} /></Field>
+        </div>
+      ) : (
+        <>
+          <div className="bp-two">
+            <Field label="Mode"><Seg value={d.cash_mode} options={[['nette', 'Net (en une fois)'], ['echelonne', 'Échelonné']]} onChange={(v) => f.set({ cash_mode: v })} /></Field>
+            <Field label="Statut"><Seg value={d.cash_statut} options={[['paye', 'Payé'], ['en_attente', 'En attente']]} onChange={(v) => f.set({ cash_statut: v })} /></Field>
+          </div>
+          <div className="bp-two">
+            <label className="bp-fld">Montant total (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.montant_total} onChange={(e) => f.set({ montant_total: e.target.value })} /></label>
+            {d.cash_mode === 'echelonne' && <label className="bp-fld">Déjà payé (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.deja_paye} onChange={(e) => f.set({ deja_paye: e.target.value })} /></label>}
+          </div>
+          {d.cash_mode === 'echelonne' && toNum(d.montant_total) > 0 && <p className="bp-hint" style={{ color: reste > 0 ? 'var(--buy)' : 'var(--sell)' }}>{reste > 0 ? `Reste à payer : ${fmtAr(reste)}` : 'Entièrement payé.'}</p>}
+        </>
+      )}
+      <label className="bp-fld">Notes (idées de conception, accès, demandes…)<textarea className="bp-in" style={{ minHeight: 120 }} value={d.notes} onChange={(e) => f.set({ notes: e.target.value })} /></label>
+      {c && <p className="bp-hint">Ajouté le {fmtJour(c.created_at.slice(0, 10))}{by(c.created_by) ? ` par ${by(c.created_by)}` : ''}.</p>}
+    </Sheet>
+  )
+}
+
+/* ---------- Fiche prospect ---------- */
+function ProspectFiche({ p, onClose, onSave, onDelete, onDeploy, onCall }: { p: NdProspect | null; onClose: () => void; onSave: (row: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onDeploy: () => void; onCall: (c: Contact) => void }) {
+  const f = useDraft({
+    nom: p?.nom ?? '', email: p?.email ?? '', tel: p?.tel ?? '', activite: p?.activite ?? '', type_client: (p?.type_client ?? 'GP') as TypeClient,
+    date_conception: p?.date_conception ?? '', idee: p?.idee ?? '', type_paiement: (p?.type_paiement ?? 'cash') as Pay,
+    taches: p?.taches ?? [], statut: p?.statut ?? 'en_cours',
+  })
+  const d = f.d
+  const [newTask, setNewTask] = useState('')
+  const [armed, setArmed] = useState(false)
+  const submit = async () => {
+    if (!d.nom.trim()) return
+    f.setBusy(true)
+    await onSave({ ...d, nom: d.nom.trim(), email: d.email.trim(), tel: d.tel.trim(), activite: d.activite.trim(), date_conception: d.date_conception || null })
+    f.setBusy(false)
+  }
+  const addTask = () => { const t = newTask.trim(); if (!t) return; f.set({ taches: [...d.taches, { t, ok: false }] }); setNewTask('') }
+  return (
+    <Sheet title={p ? 'Prospect' : 'Nouveau prospect'} onClose={onClose} onSubmit={submit}
+      foot={<>{p ? <DelBtn onDelete={onDelete} /> : <span />}<SaveBtn isNew={!p} dirty={f.dirty} busy={f.busy} ok={!!d.nom.trim()} /></>}>
+      <input className="bp-title-in" placeholder="Nom du prospect" value={d.nom} onChange={(e) => f.set({ nom: e.target.value })} autoFocus={!p} aria-label="Nom" />
+      <ContactFields nom={d.nom} email={d.email} tel={d.tel} set={f.set} onCall={onCall} />
+      <label className="bp-fld">Activité (projet)<input className="bp-in" placeholder="ex. Restaurant · site + menu WhatsApp" value={d.activite} onChange={(e) => f.set({ activite: e.target.value })} /></label>
+      <div className="bp-two">
+        <Field label="Type client"><Seg value={d.type_client} options={[['GP', 'GP'], ['PRO', 'PRO']]} onChange={(v) => f.set({ type_client: v })} /></Field>
+        <Field label="Statut global"><Seg value={d.statut} options={[['en_cours', 'En cours'], ['annule', 'Annulé']]} onChange={(v) => f.set({ statut: v })} /></Field>
+      </div>
+      <div className="bp-two">
+        <label className="bp-fld">Date de conception<input className="bp-in" type="date" value={d.date_conception} onChange={(e) => f.set({ date_conception: e.target.value })} /></label>
+        <Field label="Type de paiement"><Seg value={d.type_paiement} options={[['abonnement', 'Abonnement'], ['cash', 'Cash']]} onChange={(v) => f.set({ type_paiement: v })} /></Field>
+      </div>
+      <label className="bp-fld">Idée de conception<textarea className="bp-in" style={{ minHeight: 110 }} placeholder="Pages, fonctions, couleurs, exemples qu'il aime…" value={d.idee} onChange={(e) => f.set({ idee: e.target.value })} /></label>
+
+      <Field label={`Tâches${d.taches.length ? ` · ${d.taches.filter((t) => t.ok).length}/${d.taches.length}` : ''}`}>
+        <div className="nd-tasks">
+          {d.taches.map((t, i) => (
+            <div key={i} className={`nd-task${t.ok ? ' ok' : ''}`}>
+              <input type="checkbox" checked={t.ok} aria-label={t.ok ? 'Remettre à faire' : 'Marquer faite'} onChange={() => f.set({ taches: d.taches.map((x, j) => (j === i ? { ...x, ok: !x.ok } : x)) })} />
+              <span>{t.t}</span>
+              <button type="button" className="bp-iconbtn" style={{ width: 32, height: 32 }} aria-label="Retirer la tâche" onClick={() => f.set({ taches: d.taches.filter((_, j) => j !== i) })}><Trash2 size={16} /></button>
+            </div>
+          ))}
+          <div className="bp-telrow">
+            <input className="bp-in" placeholder="Nouvelle tâche (ex. envoyer le devis)" value={newTask} onChange={(e) => setNewTask(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTask() } }} />
+            <button type="button" className="bp-btn sm" onClick={addTask} aria-label="Ajouter la tâche"><Plus size={16} /></button>
+          </div>
+        </div>
+      </Field>
+
+      {p && p.statut === 'en_cours' && (
+        <div className="nd-deploy">
+          <p className="bp-hint">Le projet est validé ? Le prospect passe dans <b>Clients</b>, avec son idée de conception et ses tâches dans les notes.</p>
+          <button type="button" className="bp-btn primary" disabled={f.dirty} onClick={() => { if (armed) onDeploy(); else { setArmed(true); window.setTimeout(() => setArmed(false), 4000) } }}>
+            <Rocket size={18} /> {armed ? 'Confirmer le déploiement' : 'Déploiement'}
+          </button>
+          {f.dirty && <p className="bp-hint">Enregistre d'abord tes modifications.</p>}
+        </div>
+      )}
+    </Sheet>
+  )
+}
+
+/* ---------- Fiche idée ---------- */
+function IdeeFiche({ i, onClose, onSave, onDelete }: { i: NdIdee | null; onClose: () => void; onSave: (row: Record<string, unknown>) => Promise<unknown>; onDelete: () => void }) {
+  const f = useDraft({ secteur: i?.secteur ?? SECTEURS[0], solution: i?.solution ?? SOLUTIONS[0], type_client: (i?.type_client ?? 'GP') as NdIdee['type_client'], type_paiement: (i?.type_paiement ?? 'cash') as Pay, note: i?.note ?? '' })
+  const d = f.d
+  const submit = async () => { f.setBusy(true); await onSave(d); f.setBusy(false) }
+  return (
+    <Sheet title={i ? 'Idée' : 'Nouvelle idée'} onClose={onClose} onSubmit={submit}
+      foot={<>{i ? <DelBtn onDelete={onDelete} /> : <span />}<SaveBtn isNew={!i} dirty={f.dirty || !i} busy={f.busy} ok /></>}>
+      <div className="bp-two">
+        <label className="bp-fld">Secteur<select className="bp-in" value={d.secteur} onChange={(e) => f.set({ secteur: e.target.value })}>{SECTEURS.map((s) => <option key={s}>{s}</option>)}</select></label>
+        <label className="bp-fld">Type de projet<select className="bp-in" value={d.solution} onChange={(e) => f.set({ solution: e.target.value })}>{SOLUTIONS.map((s) => <option key={s}>{s}</option>)}</select></label>
+      </div>
+      <div className="bp-two">
+        <Field label="Type client visé"><Seg value={d.type_client} options={[['GP', 'GP'], ['PRO', 'PRO'], ['GP et PRO', 'Les deux']]} onChange={(v) => f.set({ type_client: v })} /></Field>
+        <Field label="Type de paiement"><Seg value={d.type_paiement} options={[['abonnement', 'Abonnement'], ['cash', 'Cash']]} onChange={(v) => f.set({ type_paiement: v })} /></Field>
+      </div>
+      <label className="bp-fld">Note<textarea className="bp-in" style={{ minHeight: 140 }} autoFocus={!i} placeholder="L'idée, à qui la proposer, le prix envisagé…" value={d.note} onChange={(e) => f.set({ note: e.target.value })} /></label>
+    </Sheet>
   )
 }

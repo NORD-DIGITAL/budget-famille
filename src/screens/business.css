@@ -201,3 +201,15 @@ textarea.bp-in { min-height: 90px; resize: vertical; }
 .bp-glance .line span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-glance .line em { font-style: normal; font-family: var(--f-mono); font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--buy-soft); color: var(--buy); white-space: nowrap; }
 .bp-ct .ct-next, .bp-ct .ct-tag, .bp-ct .ct-btn.primary { color: var(--on-accent); }
+
+/* Projet NORD DIGITAL : statuts, tâches des prospects, déploiement */
+.nd-st.termine, .nd-st.vendu { color: var(--sell); background: var(--sell-soft); }
+.nd-st.vendu { color: var(--leaf); background: var(--leaf-soft); }
+.nd-tasks { display: flex; flex-direction: column; gap: 4px; }
+.nd-task { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 4px 6px; border-radius: 8px; background: var(--panel-2); }
+.nd-task input { width: 18px; height: 18px; accent-color: var(--accent); }
+.nd-task span { overflow-wrap: anywhere; }
+.nd-task.ok span { text-decoration: line-through; color: var(--muted); }
+.nd-deploy { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--accent); border-radius: 12px; background: var(--accent-soft); }
+.bp a.bp-btn { color: var(--fg); }
+.bp a.bp-btn.primary { color: var(--on-accent); }

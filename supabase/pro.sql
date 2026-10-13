@@ -1,6 +1,6 @@
 -- Mode PRO (v3.9.0) : Business Pro devient un espace à projets.
 --   * Projet Légumes      : Sam-san + Chloé (tables bp_fournisseurs / bp_clients / bp_transactions)
---   * Projet NORD DIGITAL : Sam-san + andrinirinaonja@gmail.com (table nd_projets : suivi des projets clients)
+--   * Projet NORD DIGITAL : Sam-san + andrinirinaonja@gmail.com (tables nd_clients, nd_prospects, nd_idees)
 --   * Carnet de travail   : chaque utilisateur PRO a le sien (tables work_*)
 -- Tout utilisateur peut « Passer en PRO » (table pro_users). Les membres d'un projet sont PRO d'office
 -- et gardent l'accès illimité (sans Go Code). À exécuter après business_pro.sql. Rejouable sans risque.
@@ -47,28 +47,96 @@ begin
   end loop;
 end $$;
 
--- 3. Projet NORD DIGITAL : suivi des projets clients
-create table if not exists public.nd_projets (
+-- 3. Projet NORD DIGITAL : Clients, Prospects, Idées (membres « nord-digital »)
+create table if not exists public.nd_clients (
   id uuid primary key default gen_random_uuid(),
-  client text not null check (char_length(client) between 1 and 120),
+  nom text not null check (char_length(nom) between 1 and 120),
+  email text not null default '' check (char_length(email) <= 160),
   tel text not null default '' check (char_length(tel) <= 40),
-  type text not null default 'Site web' check (char_length(type) <= 40),
-  titre text not null default '' check (char_length(titre) <= 160),
-  statut text not null default 'devis' check (statut in ('devis', 'en_cours', 'livre', 'annule')),
-  montant numeric not null default 0 check (montant >= 0),
-  acompte numeric not null default 0 check (acompte >= 0),
-  echeance date,
-  notes text not null default '' check (char_length(notes) <= 4000),
+  activite text not null default '' check (char_length(activite) <= 200),       -- le projet réalisé pour lui
+  type_client text not null default 'GP' check (type_client in ('GP', 'PRO')),
+  hebergement text not null default 'nord-digital' check (hebergement in ('nord-digital', 'autre')),
+  hebergement_autre text not null default '' check (char_length(hebergement_autre) <= 120),
+  domaine text not null default '' check (char_length(domaine) <= 160),
+  date_conception date,
+  date_deploiement date,
+  premier_paiement date,
+  premier_paiement_montant numeric not null default 0 check (premier_paiement_montant >= 0),
+  type_paiement text not null default 'cash' check (type_paiement in ('abonnement', 'cash')),
+  mensualite numeric not null default 0 check (mensualite >= 0),               -- abonnement
+  abo_statut text not null default 'impaye' check (abo_statut in ('paye', 'impaye')),
+  cash_mode text not null default 'nette' check (cash_mode in ('nette', 'echelonne')),
+  montant_total numeric not null default 0 check (montant_total >= 0),          -- cash
+  deja_paye numeric not null default 0 check (deja_paye >= 0),
+  cash_statut text not null default 'en_attente' check (cash_statut in ('paye', 'en_attente')),
+  statut text not null default 'en_cours' check (statut in ('en_cours', 'termine', 'vendu')),
+  notes text not null default '' check (char_length(notes) <= 8000),
   created_by uuid default auth.uid() references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-alter table public.nd_projets enable row level security;
-drop policy if exists "membres" on public.nd_projets;
-create policy "membres" on public.nd_projets for all to authenticated
-  using (public.bp_member('nord-digital')) with check (public.bp_member('nord-digital'));
-revoke all on public.nd_projets from anon;
-grant select, insert, update, delete on public.nd_projets to authenticated;
+
+create table if not exists public.nd_prospects (
+  id uuid primary key default gen_random_uuid(),
+  nom text not null check (char_length(nom) between 1 and 120),
+  email text not null default '' check (char_length(email) <= 160),
+  tel text not null default '' check (char_length(tel) <= 40),
+  activite text not null default '' check (char_length(activite) <= 200),
+  type_client text not null default 'GP' check (type_client in ('GP', 'PRO')),
+  date_conception date,
+  idee text not null default '' check (char_length(idee) <= 8000),
+  type_paiement text not null default 'cash' check (type_paiement in ('abonnement', 'cash')),
+  taches jsonb not null default '[]'::jsonb,                                     -- [{ "t": "…", "ok": false }]
+  statut text not null default 'en_cours' check (statut in ('en_cours', 'annule')),
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.nd_idees (
+  id uuid primary key default gen_random_uuid(),
+  secteur text not null default 'Autre' check (char_length(secteur) <= 60),
+  solution text not null default '' check (char_length(solution) <= 60),
+  type_client text not null default 'GP' check (type_client in ('GP', 'PRO', 'GP et PRO')),
+  type_paiement text not null default 'cash' check (type_paiement in ('abonnement', 'cash')),
+  note text not null default '' check (char_length(note) <= 8000),
+  created_by uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['nd_clients', 'nd_prospects', 'nd_idees'] loop
+    execute format('alter table public.%I enable row level security', t);
+    execute format('drop policy if exists "membres" on public.%I', t);
+    execute format('create policy "membres" on public.%I for all to authenticated using (public.bp_member(''nord-digital'')) with check (public.bp_member(''nord-digital''))', t);
+    execute format('revoke all on public.%I from anon', t);
+    execute format('grant select, insert, update, delete on public.%I to authenticated', t);
+  end loop;
+end $$;
+
+-- Bouton « Déploiement » : le prospect devient client (et quitte la liste des prospects)
+create or replace function public.nd_deploy_prospect(p_id uuid)
+returns uuid language plpgsql security definer set search_path = public as $$
+declare p nd_prospects; v_id uuid; v_taches text;
+begin
+  if not public.bp_member('nord-digital') then raise exception 'Réservé au Projet NORD DIGITAL'; end if;
+  select * into p from nd_prospects where id = p_id;
+  if not found then raise exception 'Prospect introuvable'; end if;
+  select string_agg(case when (x ->> 'ok')::boolean then '[x] ' else '[ ] ' end || (x ->> 't'), E'\n')
+    into v_taches from jsonb_array_elements(p.taches) x;
+  insert into nd_clients (nom, email, tel, activite, type_client, date_conception, date_deploiement, type_paiement, statut, notes, created_by)
+  values (p.nom, p.email, p.tel, p.activite, p.type_client, p.date_conception, current_date, p.type_paiement, 'en_cours',
+          coalesce(concat_ws(E'\n\n', case when p.idee <> '' then 'Idée de conception :' || E'\n' || p.idee end, case when v_taches is not null then 'Tâches :' || E'\n' || v_taches end), ''),
+          coalesce(p.created_by, auth.uid()))
+  returning id into v_id;
+  delete from nd_prospects where id = p_id;
+  return v_id;
+end $$;
+revoke all on function public.nd_deploy_prospect(uuid) from public, anon;
+grant execute on function public.nd_deploy_prospect(uuid) to authenticated;
 
 -- 4. Membres visibles entre eux, projet par projet
 create or replace function public.bp_project_members(p_projet text)

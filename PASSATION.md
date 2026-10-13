@@ -60,7 +60,10 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 - Business Pro = espace à projets (`src/screens/Pro.tsx`) :
   - **Carnet de travail** pour chaque utilisateur PRO (son propre carnet, RLS `user_id = auth.uid()`), en thème sombre ;
   - **Projet Légumes** (`LegumesPage`) : membres Sam-san + Chloé ;
-  - **Projet NORD DIGITAL** (`NordDigitalPage`, table `nd_projets`) : suivi des projets clients (type, statut devis/en cours/livré/annulé, montant, déjà payé, échéance) ; membres Sam-san + andrinirinaonja@gmail.com ;
+  - **Projet NORD DIGITAL** (`NordDigitalPage`, v3.9.1) : membres Sam-san + andrinirinaonja@gmail.com, trois rubriques :
+    - **Clients** (`nd_clients`) : contact (téléphone → appel/SMS/WhatsApp, e-mail), activité, type GP/PRO, hébergement (NORD DIGITAL ou autre), domaine, dates de conception/déploiement, premier paiement, paiement abonnement (mensualité, payé ou pas) ou cash (net ou échelonné, statut, reste à payer), statut global en cours/terminé/vendu, notes ;
+    - **Prospects** (`nd_prospects`) : contact, activité, type client, date de conception, idée de conception, type de paiement, liste de tâches, statut en cours/annulé, bouton **Déploiement** → `nd_deploy_prospect()` crée le client (idée et tâches dans les notes) et retire le prospect ;
+    - **Idées** (`nd_idees`) : secteur (liste), type de projet, type client visé, type de paiement, note ;
   - **Autres fonctions à la demande** : proposition envoyée dans `feedback` (préfixe « [PRO] ») ou WhatsApp de l'admin 034 29 438 04.
 - Membres des projets : table `bp_members` (fait foi), fonction `bp_member(projet)`. Tout membre d'un projet est PRO et a l'accès illimité (`is_partner()` → `my_access_v3`). Secours côté appli : `PROJET_MEMBERS` dans `src/lib/pro.ts`.
 - Accueil (PRO seulement) : une seule carte sombre « Business Pro » (prochain rendez-vous, tâches, chiffres des projets), qui remplace les deux anciennes cartes.
