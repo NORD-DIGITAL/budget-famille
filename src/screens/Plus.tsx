@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, SlidersHorizontal, Target, UserRound, Users } from 'lucide-react'
+import { Briefcase, ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, SlidersHorizontal, Target, UserRound, Users } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { saveTextFile, slug, stamp, toCsv } from '../lib/files'
@@ -9,16 +9,16 @@ import type { Kind } from '../lib/types'
 import { ByNord, Header, Row, Sheet } from '../components/ui'
 import { useBadge } from '../lib/inbox'
 import { APP_LABEL } from '../lib/version'
-import { isOwner } from '../lib/owner'
+import { isOwner, isPartner } from '../lib/owner'
 import { SubscriptionCard } from './GoCode'
 import { CarnetSwitcher } from '../components/Carnets'
 import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeForCarnet } from '../lib/theme'
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
-export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail' | 'organiser'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail' | 'business' | 'organiser'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail', organiser: 'Organiser / personnaliser',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail', business: 'Business Pro', organiser: 'Organiser / personnaliser',
 }
 
 function useExportCsv() {
@@ -64,6 +64,7 @@ export default function CompteScreen({ open }: { open: (p: SubPage) => void }) {
       <div>
         <Row icon={ico(SlidersHorizontal)} label="Organiser / personnaliser" sub="Thème, taille, empreinte, catégories, comptes, carnet" onClick={() => open('organiser')} />
         {isOwner(session) && <Row icon={ico(NotebookPen)} label="Carnet de travail" sub="Rendez-vous, tâches et notes avec rappels" onClick={() => open('travail')} />}
+        {isPartner(session) && <Row icon={ico(Briefcase)} label="Business Pro" sub="Fournisseurs, clients, achats et ventes de légumes" onClick={() => open('business')} />}
         <Row icon={ico(Users)} label="Membres" onClick={() => open('membres')} />
         <Row icon={ico(Share2)} label="Famille & partage" sub="Inviter un proche avec le code" onClick={() => open('partage')} />
         <Row icon={ico(Lightbulb)} label="Remarque / suggestion" sub="Proposer une amélioration" onClick={() => open('remarques')} />
@@ -114,6 +115,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
       { label: 'Dettes', Icon: HandCoins, run: go(() => openSub('dettes')) },
       { label: 'Faire les courses', Icon: ShoppingCart, run: go(() => openSub('courses')) },
       ...(isOwner(session) ? [{ label: 'Carnet de travail', Icon: NotebookPen, run: go(() => openSub('travail')) }] : []),
+      ...(isPartner(session) ? [{ label: 'Business Pro', Icon: Briefcase, run: go(() => openSub('business')) }] : []),
       { label: 'Graphiques', Icon: PieChart, run: go(goCharts) },
     ] },
     { title: 'Organiser', items: [

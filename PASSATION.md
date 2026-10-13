@@ -44,6 +44,14 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 
 - Thème **Encre** (bleu encre, polices Bricolage Grotesque / IBM Plex Sans / JetBrains Mono) dans Compte › Thème de couleur, visible seulement pour le compte propriétaire (`ownerOnly` dans `src/lib/theme.ts`).
 
+## Business Pro (v3.8.0)
+- Section **Business Pro** réservée aux partenaires `gosamsan1122@gmail.com` et `raharisoamaevahchloe@gmail.com` (Chloé, nièce et partenaire de Sam-san) : `PARTNER_EMAILS` / `isPartner()` dans `src/lib/owner.ts`, table `app_partners` + fonction `is_partner()` côté serveur (fait foi pour les données).
+- Contenu : fournisseurs (nom, quartier, téléphone, produits, saison par mois), clients (nom, région, téléphone, produits), transactions achat/vente (quantité, unité, prix, montant en Ar, paiement), historique par contact et bilan par produit. Bouton « Contacter » : appel, SMS, WhatsApp, copier le numéro. Données **communes aux deux partenaires**.
+- Accueil : carte sombre « Business Pro » (achats/ventes du mois, fournisseurs en saison). Aussi dans Compte, « Voir tout » et la barre latérale.
+- Thème sombre repris de l'artifact « Carnets fournisseurs », CSS limité à `.bp` / `.bp-glance` dans `src/screens/business.css`.
+- Accès illimité des partenaires : `my_access_v3()` renvoie une fin d'accès au 31/12/2999 pour eux (même signature, marche aussi avec l'APK déjà installée). Chloé n'est pas administratrice. Carte « Partenaire · accès illimité » dans Compte.
+- Tables `bp_fournisseurs`, `bp_clients`, `bp_transactions` (RLS : `is_partner()`). SQL : `supabase/business_pro.sql` — **à exécuter dans Supabase avant de publier la 3.8.0** (sinon l'écran affiche « pas encore activé »).
+
 ## Fichiers clés
 - `src/App.tsx` : ordre des écrans = chargement → version → connexion → verrou → profil → Go Code → carnet.
 - `src/lib/data.tsx` : chargement des données.

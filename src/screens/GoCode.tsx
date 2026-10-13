@@ -6,6 +6,7 @@ import { userInfo } from '../lib/prefs'
 import { ByNord, Sheet } from '../components/ui'
 import { Brand } from './Auth'
 import { APP_LABEL } from '../lib/version'
+import { isPartner } from '../lib/owner'
 
 export const PLANS: { days: number; label: string }[] = [
   { days: 30, label: '30 jours' }, { days: 90, label: '3 mois' }, { days: 180, label: '6 mois' }, { days: 365, label: '12 mois' },
@@ -80,7 +81,7 @@ export function GoCodeScreen() {
 
 /** Carte « Abonnement » dans Compte : compteur de jours + saisie d'un nouveau code. */
 export function SubscriptionCard({ onAdmin }: { onAdmin: () => void }) {
-  const { isAdmin, expiresAt } = useData()
+  const { isAdmin, expiresAt, session } = useData()
   const [open, setOpen] = useState(false)
   const r = useRedeem()
   const left = daysLeft(expiresAt)
@@ -90,6 +91,12 @@ export function SubscriptionCard({ onAdmin }: { onAdmin: () => void }) {
       <ShieldCheck size={24} className="text-sun-500" />
       <span className="flex-1"><b className="block">Administrateur · accès illimité</b><span className="text-sm text-white/70">Utilisateurs et Go Codes</span></span>
     </button>
+  )
+  if (isPartner(session)) return (
+    <div className="mx-5 my-3 flex items-center gap-3 rounded-2xl bg-ink p-4 text-white">
+      <ShieldCheck size={24} className="text-sun-500" />
+      <span className="flex-1"><b className="block">Partenaire · accès illimité</b><span className="text-sm text-white/70">Aucun Go Code nécessaire</span></span>
+    </div>
   )
   return (
     <div className={`mx-5 my-3 rounded-2xl p-4 ${tone}`}>
