@@ -54,6 +54,20 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 - v3.8.1 : en haut de Business Pro, les deux partenaires se voient (nom, téléphone, e-mail, bouton Contacter) et chaque fiche/transaction indique « par … ». Seulement dans cette section. RPC `bp_partners()` (renvoie quelque chose uniquement à un partenaire) : `supabase/business_pro_partenaires.sql`, à exécuter après `business_pro.sql`.
 - v3.8.1 : Carnet de travail — plus de formulaire affiché d'office. Boutons « + Nouveau rendez-vous », « + Nouvelle tâche », « + Nouvelle note » qui ouvrent le formulaire dans une fiche (`AddSheet` dans `Travail.tsx`). Règle de Sam-san pour toutes ses apps : un bouton d'ajout d'abord, le formulaire ensuite.
 
+## Mode PRO (v3.9.0)
+- **Passer en PRO** (Organiser / personnaliser) : ouvert à tous. Enregistré dans `pro_users`, puis l'utilisateur est **déconnecté** et se reconnecte sur l'interface PRO (message « Compte PRO activé » à la connexion).
+- En PRO, l'onglet **Portefeuille** devient **Business Pro** ; le Portefeuille passe dans « Voir tout » (et Compte, barre latérale).
+- Business Pro = espace à projets (`src/screens/Pro.tsx`) :
+  - **Carnet de travail** pour chaque utilisateur PRO (son propre carnet, RLS `user_id = auth.uid()`), en thème sombre ;
+  - **Projet Légumes** (`LegumesPage`) : membres Sam-san + Chloé ;
+  - **Projet NORD DIGITAL** (`NordDigitalPage`, table `nd_projets`) : suivi des projets clients (type, statut devis/en cours/livré/annulé, montant, déjà payé, échéance) ; membres Sam-san + andrinirinaonja@gmail.com ;
+  - **Autres fonctions à la demande** : proposition envoyée dans `feedback` (préfixe « [PRO] ») ou WhatsApp de l'admin 034 29 438 04.
+- Membres des projets : table `bp_members` (fait foi), fonction `bp_member(projet)`. Tout membre d'un projet est PRO et a l'accès illimité (`is_partner()` → `my_access_v3`). Secours côté appli : `PROJET_MEMBERS` dans `src/lib/pro.ts`.
+- Accueil (PRO seulement) : une seule carte sombre « Business Pro » (prochain rendez-vous, tâches, chiffres des projets), qui remplace les deux anciennes cartes.
+- Utilisateurs (admin) : statuts Admin / PRO / Légumes / NORD DIGITAL / Standard (`admin_user_roles()`).
+- **Mot de passe oublié** sur l'écran de connexion : code envoyé par e-mail (`resetPasswordForEmail`), puis `verifyOtp(type 'recovery')` et nouveau mot de passe. **Réglage Supabase requis** : Authentication › Email Templates › Reset Password doit contenir `{{ .Token }}`.
+- SQL : `supabase/pro.sql` (après `business_pro.sql`).
+
 ## Fichiers clés
 - `src/App.tsx` : ordre des écrans = chargement → version → connexion → verrou → profil → Go Code → carnet.
 - `src/lib/data.tsx` : chargement des données.

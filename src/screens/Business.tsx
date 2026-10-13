@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Briefcase, ChevronRight, X } from 'lucide-react'
+import { ArrowLeft, X } from 'lucide-react'
 import './business.css'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
@@ -20,8 +20,8 @@ const curMonth = () => new Date().getMonth() + 1
 const byJour = (a: BpTx, b: BpTx) => b.jour.localeCompare(a.jour) || b.created_at.localeCompare(a.created_at)
 const sum = (l: BpTx[], t?: TxType) => l.filter((x) => !t || x.type === t).reduce((s, x) => s + x.montant, 0)
 
-/** Section « Business Pro » : fournisseurs et clients en légumes, achats/ventes, saisons, bilan par produit. Partagée entre les partenaires. */
-export function BusinessPage({ onBack }: { onBack: () => void }) {
+/** « Projet Légumes » (dans Business Pro) : fournisseurs et clients en légumes, achats/ventes, saisons, bilan par produit. Partagé entre ses membres. */
+export function LegumesPage({ onBack }: { onBack: () => void }) {
   const [data, setData] = useState<Data>({ fournisseurs: [], clients: [], txs: [] })
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
   const [errMsg, setErrMsg] = useState('')
@@ -42,7 +42,7 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
     if (r.missing) { setState('missing'); return }
     if (r.error) { setErrMsg(r.error); setState('error'); return }
     setData({ fournisseurs: r.fournisseurs, clients: r.clients, txs: r.txs }); setState('ready')
-    setPartners(await loadPartners())
+    setPartners(await loadPartners('legumes'))
   }, [])
   useEffect(() => { reload() }, [reload])
   // Les deux partenaires écrivent : on recharge en revenant sur l'appli
@@ -119,7 +119,7 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
     <div className="bp">
       <header className="bp-top pt-safe">
         <button className="bp-iconbtn" aria-label="Retour" onClick={onBack}><ArrowLeft size={24} strokeWidth={1.8} /></button>
-        <h1>Business Pro</h1>
+        <h1>Projet Légumes</h1>
         <span className="bp-sync"><span className={`bp-dot ${ready ? 'on' : state === 'loading' ? 'busy' : 'err'}`} />{ready ? 'À jour' : state === 'loading' ? 'Chargement…' : 'Hors service'}</span>
       </header>
 
@@ -129,7 +129,7 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
 
       {partners.length > 0 && <Partners list={partners} myId={myId} onCall={setCall} />}
 
-      {state === 'missing' && <p className="bp-notice warn">Business Pro n'est pas encore activé sur le serveur.</p>}
+      {state === 'missing' && <p className="bp-notice warn">Le Projet Légumes n'est pas encore activé sur le serveur.</p>}
       {state === 'error' && <p className="bp-notice err">Le carnet ne se charge pas ({errMsg}). Reviens dans un instant.</p>}
 
       {(tab === 'fournisseur' || tab === 'client') && (
@@ -156,7 +156,7 @@ export function BusinessPage({ onBack }: { onBack: () => void }) {
 }
 
 /* ---------- Les deux partenaires, visibles l'un pour l'autre ici seulement ---------- */
-function Partners({ list, myId, onCall }: { list: Partner[]; myId: string; onCall: (c: Contact) => void }) {
+export function Partners({ list, myId, onCall }: { list: Partner[]; myId: string; onCall: (c: Contact) => void }) {
   return (
     <section className="bp-partners" aria-label="Partenaires">
       {list.map((p) => {
@@ -336,7 +336,7 @@ function ContactFiche({ kind, contact, txs, onClose, onSave, onDelete, onCall, o
 }
 
 /* ---------- Appeler / SMS / WhatsApp ---------- */
-function CallSheet({ c, onClose }: { c: Contact; onClose: () => void }) {
+export function CallSheet({ c, onClose }: { c: Contact; onClose: () => void }) {
   const intl = telIntl(c.tel), loc = telLocal(c.tel)
   const [copied, setCopied] = useState(false)
   const copy = async () => { try { await navigator.clipboard.writeText(loc); setCopied(true) } catch { /* le numéro reste sélectionnable */ } }
@@ -506,32 +506,5 @@ function Bilan({ txs }: { txs: BpTx[] }) {
         </>
       )}
     </section>
-  )
-}
-
-/* ---------- Carte de l'accueil (partenaires uniquement) ---------- */
-export function BusinessGlance({ onOpen }: { onOpen: () => void }) {
-  const [d, setD] = useState<{ a: number; v: number; saison: number; missing: boolean } | null>(null)
-  useEffect(() => {
-    let alive = true
-    loadBusiness().then((r) => {
-      if (!alive) return
-      const m = ymd(new Date()).slice(0, 7)
-      const month = r.txs.filter((t) => t.jour.startsWith(m))
-      setD({ a: sum(month, 'achat'), v: sum(month, 'vente'), saison: r.fournisseurs.filter((f) => (f.mois ?? []).includes(curMonth())).length, missing: r.missing || !!r.error })
-    })
-    return () => { alive = false }
-  }, [])
-  return (
-    <button className="bp-glance" onClick={onOpen}>
-      <span className="h"><Briefcase size={20} strokeWidth={1.8} /><b>Business Pro</b><small>Fournisseurs · clients</small><ChevronRight size={18} /></span>
-      {d && !d.missing ? (
-        <span className="g">
-          <span>Achats du mois<b className="buy">{fmtAr(d.a)}</b></span>
-          <span>Ventes du mois<b className="sell">{fmtAr(d.v)}</b></span>
-          <span>En saison<b className="leaf">{d.saison} fourn.</b></span>
-        </span>
-      ) : <span className="msg">{d ? 'Touche pour ouvrir le carnet.' : 'Chargement…'}</span>}
-    </button>
   )
 }

@@ -13,9 +13,8 @@ import { AccueilAside } from './AccueilAside'
 import { MonthBar, fmtMonthLong } from '../components/DatePicker'
 import { RecurringDueCard } from '../components/Recurring'
 import type { SubPage } from './Plus'
-import { isOwner, isPartner } from '../lib/owner'
-import { BusinessGlance } from './Business'
-import { WorkGlance } from './WorkGlance'
+import { usePro } from '../lib/pro'
+import { ProGlance } from './Pro'
 
 export const LOW = 20000
 
@@ -24,10 +23,11 @@ const NO_FILTER: Filters = { kind: 'tout', day: null, cat: null, acc: null, mem:
 
 export type Shortcut = { label: string; Icon: LucideIcon; run: () => void }
 
-export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, onRefresh }: {
-  onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount?: () => void
+export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, onRefresh, goPro }: {
+  goPro: () => void; onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount?: () => void
 }) {
   const { txs, month, catById, accById, memById, cur, session, profile, catPath, goals, moves, rootOf, categories, accounts, members } = useData()
+  const pro = usePro(session)
   const due = dueReminders(goals, moves)
   const [hidden, toggleHidden] = useHidden()
   const [q, setQ] = useState('')
@@ -103,7 +103,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
             <Mail size={22} strokeWidth={1.8} />
             {inboxN > 0 && <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[0.6875rem] font-bold text-white">{inboxN > 99 ? '99+' : inboxN}</span>}
           </button>
-          {isOwner(session) && (
+          {pro.pro && (
             <button aria-label="Carnet de travail" onClick={() => openSub('travail')} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/25">
               <NotebookPen size={22} strokeWidth={1.8} />
             </button>
@@ -171,8 +171,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
 
       {/* Opérations */}
       <section className="relative -mt-6 min-h-[40vh] rounded-t-[28px] bg-white px-5 pb-6 pt-6 lg:mt-0 lg:px-8 lg:pt-4">
-        {!q && isPartner(session) && <BusinessGlance onOpen={() => openSub('business')} />}
-        {!q && isOwner(session) && <WorkGlance onOpen={() => openSub('travail')} />}
+        {!q && pro.pro && <ProGlance onOpen={goPro} />}
         {!q && <RecurringDueCard />}
         <div className="mb-3 flex items-center gap-2">
           <h2 className="section-title flex-1">{q ? 'Résultats' : 'Opérations du mois'}</h2>

@@ -30,12 +30,11 @@ import { APP_LABEL, APP_VERSION, OLD_VERSION_MSG, isNative, openApk, reloadLates
 import type { AppConfig } from './lib/version'
 import { GoCodeScreen, hasAccess } from './screens/GoCode'
 import { UsersPage } from './screens/Admin'
-import { TravailPage } from './screens/Travail'
-import { isOwner, isPartner } from './lib/owner'
-import { BusinessPage } from './screens/Business'
+import { usePro, isProjectMember } from './lib/pro'
+import { ProPage } from './screens/Pro'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
-type Tab = 'accueil' | 'portefeuille' | 'graphiques' | 'compte'
+type Tab = 'accueil' | 'portefeuille' | 'pro' | 'graphiques' | 'compte'
 const AUTO_OUT_KEY = 'bf-auto-logout'
 
 /* ---------- Écran verrouillé (empreinte / visage) ---------- */
@@ -121,6 +120,7 @@ function Shell() {
   const uid = session?.user.id ?? null
   const checkedFor = useRef<string | null>(null)
   const userTheme = useUserTheme(uid)
+  const pro = usePro(session)
   useInboxSync(uid, isAdmin)
   useEffect(() => { if (carnet) syncReminders(goals, carnet.name) }, [goals, carnet])
   useEffect(() => { applyTheme(themeForCarnet(carnet?.id ?? null, principalId, userTheme)) }, [carnet?.id, principalId, userTheme])
@@ -199,7 +199,7 @@ function Shell() {
   if (!session) return <AuthScreen />
   if (locked) return <LockScreen onUnlock={() => setLocked(false)} />
   if (!profile?.onboarded || !profile.full_name?.trim()) return <ProfileSetup />
-  if (!hasAccess(isAdmin, expiresAt) && !isPartner(session)) return <GoCodeScreen />
+  if (!hasAccess(isAdmin, expiresAt) && !isProjectMember(session)) return <GoCodeScreen />
   if (!carnet) return <OnboardingScreen />
 
   const openForm = (t: Tx | null, k: Kind = 'depense') => { setEditing(t); setFormKind(k); setFormOpen(true) }
@@ -208,7 +208,7 @@ function Shell() {
 
   const tabs: { k: Tab; label: string; Icon: typeof Home }[] = [
     { k: 'accueil', label: 'Accueil', Icon: Home },
-    { k: 'portefeuille', label: 'Portefeuille', Icon: Wallet },
+    pro.pro ? { k: 'pro', label: 'Business Pro', Icon: Briefcase } : { k: 'portefeuille', label: 'Portefeuille', Icon: Wallet },
     { k: 'graphiques', label: 'Graphiques', Icon: PieChart },
     { k: 'compte', label: 'Compte', Icon: UserRound },
   ]
@@ -253,8 +253,8 @@ function Shell() {
           <SideLink active={sub === 'objectifs'} onClick={() => openSub('objectifs')} Icon={PiggyBank} label="Épargne" />
           <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
           <SideLink active={sub === 'courses'} onClick={() => openSub('courses')} Icon={ShoppingCart} label="Faire les courses" />
-          {isOwner(session) && <SideLink active={sub === 'travail'} onClick={() => openSub('travail')} Icon={NotebookPen} label="Carnet de travail" />}
-          {isPartner(session) && <SideLink active={sub === 'business'} onClick={() => openSub('business')} Icon={Briefcase} label="Business Pro" />}
+          {pro.pro && <SideLink active={sub === 'portefeuille'} onClick={() => openSub('portefeuille')} Icon={Wallet} label="Portefeuille" />}
+          {pro.pro && <SideLink active={sub === 'travail'} onClick={() => openSub('travail')} Icon={NotebookPen} label="Carnet de travail" />}
         </nav>
         <div className="mt-auto space-y-2 pt-6">
           <SideLink active={sub === 'remarques'} onClick={() => openSub('remarques')} Icon={Lightbulb} label="Remarque / suggestion" />
@@ -272,10 +272,10 @@ function Shell() {
       </aside>
 
       <main className="mx-auto min-h-full max-w-lg bg-white pb-28 md:max-w-none lg:mx-6 lg:my-6 lg:max-w-none lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm 2xl:mx-10">
-        {sub === 'business' && isPartner(session) ? (
-          <div className="lg:mx-auto lg:max-w-5xl"><BusinessPage onBack={closeSub} /></div>
+        {(sub === 'business' || sub === 'travail') && pro.pro ? (
+          <div className="lg:mx-auto lg:max-w-5xl"><ProPage onBack={closeSub} initial={sub === 'travail' ? 'travail' : 'hub'} /></div>
         ) : sub ? (
-          <div className={sub === 'travail' ? 'lg:mx-auto lg:max-w-5xl' : 'lg:mx-auto lg:max-w-3xl'}>
+          <div className="lg:mx-auto lg:max-w-3xl">
             <Header title={SUB_TITLES[sub]} onBack={closeSub} />
             {sub === 'budget' && <BudgetPage />}
             {sub === 'objectifs' && <GoalsPage />}
@@ -290,7 +290,7 @@ function Shell() {
             {sub === 'inbox' && <InboxPage />}
             {sub === 'users' && <UsersPage />}
             {sub === 'confidentialite' && <PrivacyPage />}
-            {sub === 'travail' && isOwner(session) && <TravailPage />}
+            {sub === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
             {sub === 'organiser' && <OrganiserPage open={openSub} />}
           </div>
         ) : (
@@ -301,10 +301,11 @@ function Shell() {
               </button>
             )}
             {tab === 'accueil' && (
-              <AccueilScreen onEdit={(t) => openTx(t)} onAdd={(k) => openForm(null, k)} openSub={openSub} onRefresh={refreshAll}
+              <AccueilScreen goPro={() => setTab('pro')} onEdit={(t) => openTx(t)} onAdd={(k) => openForm(null, k)} openSub={openSub} onRefresh={refreshAll}
                 goCharts={() => setTab('graphiques')} openAll={() => setAllOpen(true)} />
             )}
             {tab === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
+            {tab === 'pro' && (pro.pro ? <div className="lg:mx-auto lg:max-w-5xl"><ProPage /></div> : <PortefeuilleScreen onManage={openSub} />)}
             {tab === 'graphiques' && <GraphiquesScreen />}
             {tab === 'compte' && <div className="lg:mx-auto lg:max-w-3xl"><CompteScreen open={openSub} /></div>}
           </>

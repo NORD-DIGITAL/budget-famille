@@ -27,9 +27,12 @@ export interface BpTx {
 
 /** Les comptes partenaires (Sam-san et Chloé), visibles l'un pour l'autre dans Business Pro uniquement. */
 export interface Partner { user_id: string | null; email: string; label: string | null; full_name: string | null; phone: string | null; has_account: boolean }
-export async function loadPartners(): Promise<Partner[]> {
-  const { data, error } = await supabase.rpc('bp_partners')
-  return error || !Array.isArray(data) ? [] : (data as Partner[])
+export async function loadPartners(projet: 'legumes' | 'nord-digital' = 'legumes'): Promise<Partner[]> {
+  const { data, error } = await supabase.rpc('bp_project_members', { p_projet: projet })
+  if (!error && Array.isArray(data)) return data as Partner[]
+  if (projet !== 'legumes') return []
+  const old = await supabase.rpc('bp_partners')
+  return old.error || !Array.isArray(old.data) ? [] : (old.data as Partner[])
 }
 export const partnerName = (p: Partner) => p.full_name?.trim() || p.label || p.email.split('@')[0]
 export const initials = (name: string) => name.split(/[\s\-_.()]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?'

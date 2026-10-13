@@ -147,7 +147,7 @@ textarea.bp-in { min-height: 90px; resize: vertical; }
 .bp-glance .h b { flex: 1; font-family: var(--f-display); font-size: 18px; font-weight: 700; white-space: nowrap; }
 @media (max-width: 420px) { .bp-glance .h small { display: none; } }
 .bp-glance .h small { font-family: var(--f-mono); font-size: 11px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
-.bp-glance .g { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.bp-glance .g { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; margin-top: 10px; }
 .bp-glance .g span { background: var(--panel-2); border-radius: 10px; padding: 8px 10px; min-width: 0; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .bp-glance .g b { display: block; font-family: var(--f-mono); font-size: 14px; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .bp-glance .g b.buy { color: var(--buy); } .bp-glance .g b.sell { color: var(--sell); } .bp-glance .g b.leaf { color: var(--leaf); }
@@ -161,3 +161,43 @@ textarea.bp-in { min-height: 90px; resize: vertical; }
 .bp-partner b { font-weight: 600; display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bp-partner .me { font-size: 11px; font-weight: 600; padding: 0 7px; border-radius: 999px; background: var(--sell-soft); color: var(--sell); }
 .bp-partner small { font-family: var(--f-mono); font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Espace PRO (v3.9.0) ---------- */
+.bp-pro-tag { font-family: var(--f-mono); font-size: 11px; font-weight: 500; letter-spacing: .14em; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); margin-right: 6px; }
+.bp-projs { display: flex; flex-direction: column; gap: 8px; }
+.bp-proj { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); color: var(--fg); cursor: pointer; }
+.bp-proj:hover { border-color: var(--accent); }
+.bp-proj .ic { width: 44px; height: 44px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); }
+.bp-proj .ic.leaf { background: var(--sell-soft); color: var(--sell); }
+.bp-proj .ic.nd { background: var(--leaf-soft); color: var(--leaf); }
+.bp-proj .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bp-proj b { font-family: var(--f-display); font-size: 17px; font-weight: 700; }
+.bp-proj small { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-proj small i { font-style: normal; font-family: var(--f-mono); }
+.bp-proj > svg { color: var(--muted); flex-shrink: 0; }
+.nd-st { font-size: 12px; font-weight: 600; padding: 1px 9px; border-radius: 999px; white-space: nowrap; align-self: start; color: var(--muted); background: var(--panel-2); }
+.nd-st.en_cours { color: var(--buy); background: var(--buy-soft); }
+.nd-st.livre { color: var(--sell); background: var(--sell-soft); }
+.nd-st.annule { color: var(--danger); background: var(--danger-soft); }
+
+/* Carnet de travail dans l'espace PRO : mêmes couleurs sombres */
+.bp-ct { padding: 0 0 20px; }
+.bp-ct .bp-top { margin: 0 0 4px; }
+.bp-ct .ct {
+  --bg: #10121d; --panel: #181b2b; --panel-2: #1e2236; --line: #2c3150; --fg: #e8eaf6; --muted: #9ba0c0;
+  --accent: #8b9bff; --accent-soft: #262c55; --on-accent: #0e1030;
+  --ok: #5cd29a; --ok-soft: #173a2b; --warn: #f2b45a; --warn-soft: #3d2d12; --idle: #a3a7bf; --idle-soft: #262a3d;
+  --live: #5cc9d9; --live-soft: #123840; --danger: #ff7b72; --danger-soft: #45201e;
+  color-scheme: dark;
+}
+.bp-ct .ct-toast { color: var(--bg); }
+.bp-ct .ct-overlay { background: rgba(5, 6, 12, .72); }
+.bp-ct .ct-fiche { border: 1px solid var(--line); }
+.bp-ct .ct-btn.danger { color: var(--on-accent); }
+
+/* Carte d'accueil PRO : ligne du carnet de travail */
+.bp-glance .line { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 9px 10px; border-radius: 10px; background: var(--panel-2); font-size: 14px; color: var(--fg); min-width: 0; }
+.bp-glance .line > svg { flex-shrink: 0; color: var(--accent); }
+.bp-glance .line span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bp-glance .line em { font-style: normal; font-family: var(--f-mono); font-size: 11px; padding: 1px 8px; border-radius: 999px; background: var(--buy-soft); color: var(--buy); white-space: nowrap; }
+.bp-ct .ct-next, .bp-ct .ct-tag, .bp-ct .ct-btn.primary { color: var(--on-accent); }

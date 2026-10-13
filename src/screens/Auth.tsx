@@ -45,6 +45,8 @@ export function AuthScreen() {
   const [msg, setMsg] = useState<{ t: 'err' | 'ok'; s: string } | null>(null)
   const [unconfirmed, setUnconfirmed] = useState(false)
   const [autoOut] = useState(() => { try { const v = sessionStorage.getItem('bf-auto-logout') === '1'; sessionStorage.removeItem('bf-auto-logout'); return v } catch { return false } })
+  const [proWelcome] = useState(() => { try { const v = sessionStorage.getItem('bf-pro-welcome') === '1'; sessionStorage.removeItem('bf-pro-welcome'); return v } catch { return false } })
+  const [forgot, setForgot] = useState(false)
 
   const ready = mode === 'login' ? !!(email && pwd) : !!(name.trim() && email && phone.replace(/\D/g, '').length === 7 && pwd && pwd2 && agree)
 
@@ -95,6 +97,7 @@ export function AuthScreen() {
         <p className="text-sm text-ink-muted">{mode === 'login' ? 'Connecte-toi pour retrouver le carnet de ta famille.' : 'Quelques infos pour commencer.'}</p>
       </div>
 
+      {proWelcome && mode === 'login' && <p className="mb-4 rounded-2xl bg-ink px-4 py-3 text-sm text-white"><b className="text-sun-500">Compte PRO activé.</b> Reconnecte-toi pour arriver sur l'interface PRO.</p>}
       {autoOut && mode === 'login' && <p className="mb-4 rounded-2xl bg-sun-100 px-4 py-3 text-sm">Déconnexion automatique (8 h / 18 h) pour protéger tes données. Reconnecte-toi.</p>}
       <form onSubmit={submit} className="flex flex-col gap-4">
         {mode === 'signup' && (
@@ -116,7 +119,9 @@ export function AuthScreen() {
             </div>
           </div>
         )}
-        <div><label className="label" htmlFor="pwd">Mot de passe</label><PasswordInput id="pwd" value={pwd} onChange={setPwd} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></div>
+        <div><label className="label" htmlFor="pwd">Mot de passe</label><PasswordInput id="pwd" value={pwd} onChange={setPwd} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+          {mode === 'login' && <button type="button" onClick={() => setForgot(true)} className="mt-2 text-sm text-[#4A56E2]">Mot de passe oublié ?</button>}
+        </div>
         {mode === 'signup' && (
           <div>
             <label className="label" htmlFor="pwd2">Confirmer le mot de passe</label>
@@ -139,10 +144,73 @@ export function AuthScreen() {
         {mode === 'login' ? 'Pas encore de compte ? Inscris-toi' : "J'ai déjà un compte · Connexion"}
       </button>
       <ByNord className="mb-6 mt-auto" />
+      <Sheet open={forgot} onClose={() => setForgot(false)} title="Mot de passe oublié">
+        {forgot && <ForgotPassword initialEmail={email} onDone={(e) => { setForgot(false); setEmail(e); setPwd(''); setMsg({ t: 'ok', s: 'Mot de passe changé. Tu es connecté.' }) }} />}
+      </Sheet>
       <Sheet open={showPolicy} onClose={() => setShowPolicy(false)} title="Politique de confidentialité">
         <PrivacyText />
         <button onClick={() => { setAgree(true); setShowPolicy(false) }} className="btn-primary mt-6 w-full">J'accepte</button>
       </Sheet>
+    </div>
+  )
+}
+
+/** Mot de passe oublié : un code est envoyé par e-mail, puis on choisit un nouveau mot de passe. */
+function ForgotPassword({ initialEmail, onDone }: { initialEmail: string; onDone: (email: string) => void }) {
+  const [step, setStep] = useState<'email' | 'code'>('email')
+  const [email, setEmail] = useState(initialEmail)
+  const [code, setCode] = useState('')
+  const [pwd, setPwd] = useState('')
+  const [pwd2, setPwd2] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<{ t: 'err' | 'ok'; s: string } | null>(null)
+
+  const send = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) return setMsg({ t: 'err', s: 'Entre ton adresse e-mail.' })
+    setBusy(true); setMsg(null)
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim())
+    setBusy(false)
+    if (error) return setMsg({ t: 'err', s: /rate|seconds/i.test(error.message) ? 'Trop de demandes. Attends quelques minutes puis réessaie.' : "Envoi impossible pour l'instant. Réessaie dans quelques minutes." })
+    setStep('code'); setMsg({ t: 'ok', s: `Code envoyé à ${email.trim()}. Regarde aussi dans Spam.` })
+  }
+  const confirm = async () => {
+    if (code.length < 6) return setMsg({ t: 'err', s: 'Entre le code reçu par e-mail.' })
+    if (pwd.length < 6) return setMsg({ t: 'err', s: 'Mot de passe : 6 caractères minimum.' })
+    if (pwd !== pwd2) return setMsg({ t: 'err', s: 'Les deux mots de passe ne sont pas identiques.' })
+    setBusy(true); setMsg(null)
+    const v = await supabase.auth.verifyOtp({ email: email.trim(), token: code, type: 'recovery' })
+    if (v.error) { setBusy(false); return setMsg({ t: 'err', s: 'Code incorrect ou expiré. Vérifie-le ou demande un nouveau code.' }) }
+    const u = await supabase.auth.updateUser({ password: pwd })
+    setBusy(false)
+    if (u.error) return setMsg({ t: 'err', s: /different|same/i.test(u.error.message) ? "Choisis un mot de passe différent de l'ancien." : 'Changement impossible. Réessaie.' })
+    if (v.data.user) markAuth(v.data.user.id)
+    onDone(email.trim())
+  }
+
+  return (
+    <div className="space-y-4">
+      {step === 'email' ? (
+        <>
+          <p className="text-ink-soft">Entre l'e-mail de ton compte : tu vas recevoir un <b>code</b> pour choisir un nouveau mot de passe.</p>
+          <div><label className="label" htmlFor="fp-email">Email</label><input id="fp-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+        </>
+      ) : (
+        <>
+          <div><label className="label" htmlFor="fp-code">Code reçu par e-mail</label>
+            <input id="fp-code" className="input tabular text-center text-2xl font-semibold tracking-[0.3em]" inputMode="numeric" autoComplete="one-time-code" placeholder="••••••"
+              value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))} /></div>
+          <div><label className="label" htmlFor="fp-pwd">Nouveau mot de passe</label><PasswordInput id="fp-pwd" value={pwd} onChange={setPwd} autoComplete="new-password" /></div>
+          <div><label className="label" htmlFor="fp-pwd2">Confirmer le mot de passe</label><PasswordInput id="fp-pwd2" value={pwd2} onChange={setPwd2} autoComplete="new-password" />
+            {pwd2 && pwd !== pwd2 && <p className="mt-1.5 text-xs text-red-500">Les mots de passe ne correspondent pas.</p>}</div>
+        </>
+      )}
+      {msg && <p className={`rounded-2xl px-4 py-3 text-sm ${msg.t === 'err' ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>{msg.s}</p>}
+      {step === 'email'
+        ? <button className="btn-primary w-full" disabled={busy} onClick={send}>{busy ? 'Envoi…' : 'Recevoir le code'}</button>
+        : <>
+            <button className="btn-primary w-full" disabled={busy} onClick={confirm}>{busy ? 'Vérification…' : 'Changer mon mot de passe'}</button>
+            <button className="w-full py-2 text-sm text-[#4A56E2]" disabled={busy} onClick={send}>Renvoyer un code</button>
+          </>}
     </div>
   )
 }

@@ -8,6 +8,18 @@ import { daysLeft, fmtDay, planLabel, PLANS } from './GoCode'
 import { ComposeMessage } from './Feedback'
 
 type AdminUser = { id: string; email: string; full_name: string | null; phone: string | null; created_at: string; last_sign_in_at: string | null; expires_at: string | null; codes_pending: number }
+type Role = { user_id: string; is_admin: boolean; is_pro: boolean; projets: string[] }
+const PROJ_LABEL: Record<string, string> = { legumes: 'Légumes', 'nord-digital': 'NORD DIGITAL' }
+/** Statuts affichés sous le nom : Admin, PRO, membres des projets. */
+function RoleChips({ r }: { r?: Role }) {
+  if (!r) return null
+  const chips: [string, string][] = []
+  if (r.is_admin) chips.push(['Admin', 'bg-ink text-white'])
+  if (r.is_pro) chips.push(['PRO', 'bg-[#262c55] text-[#8b9bff]'])
+  r.projets.forEach((p) => chips.push([PROJ_LABEL[p] ?? p, 'bg-emerald-50 text-emerald-700']))
+  if (!chips.length) chips.push(['Standard', 'bg-neutral-100 text-ink-muted'])
+  return <span className="mt-1 flex flex-wrap gap-1">{chips.map(([l, c]) => <span key={l} className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold ${c}`}>{l}</span>)}</span>
+}
 type GoCodeRow = { id: string; code: string; days: number; created_at: string; used_at: string | null; revoked: boolean }
 
 function status(u: AdminUser): [string, string] {
@@ -25,9 +37,11 @@ export function UsersPage() {
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<AdminUser | null>(null)
   const [err, setErr] = useState('')
+  const [roles, setRoles] = useState<Map<string, Role>>(new Map())
   const load = useCallback(async () => {
-    const { data, error } = await supabase.rpc('admin_users')
+    const [{ data, error }, r] = await Promise.all([supabase.rpc('admin_users'), supabase.rpc('admin_user_roles')])
     if (error) setErr(error.message); else setRows((data as AdminUser[]) ?? [])
+    if (!r.error && Array.isArray(r.data)) setRoles(new Map((r.data as Role[]).map((x) => [x.user_id, x])))
   }, [])
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
   const list = useMemo(() => rows.filter((u) => !q || `${u.full_name} ${u.email} ${u.phone}`.toLowerCase().includes(q.toLowerCase())), [rows, q])
@@ -35,11 +49,13 @@ export function UsersPage() {
   if (!isAdmin) return <div className="px-5"><Empty icon="🔒" text="Réservé à l'administrateur." /></div>
   if (sel) return <UserDetail user={sel} onBack={() => { setSel(null); load() }} />
 
-  const active = rows.filter((u) => daysLeft(u.expires_at) > 0).length
+  const active = rows.filter((u) => daysLeft(u.expires_at) > 0 || roles.get(u.id)?.is_admin || roles.get(u.id)?.projets.length).length
+  const nPro = rows.filter((u) => roles.get(u.id)?.is_pro).length
   return (
     <div className="space-y-4 px-5 pb-8 pt-2">
-      <div className="grid grid-cols-3 gap-2 text-center">
+      <div className="grid grid-cols-4 gap-2 text-center">
         <div className="rounded-2xl bg-cream-tile p-3"><p className="tabular text-2xl font-semibold">{rows.length}</p><p className="text-xs text-ink-muted">comptes</p></div>
+        <div className="rounded-2xl bg-ink p-3 text-white"><p className="tabular text-2xl font-semibold">{nPro}</p><p className="text-xs text-white/70">PRO</p></div>
         <div className="rounded-2xl bg-emerald-50 p-3"><p className="tabular text-2xl font-semibold">{active}</p><p className="text-xs text-emerald-700">actifs</p></div>
         <div className="rounded-2xl bg-red-50 p-3"><p className="tabular text-2xl font-semibold">{rows.length - active}</p><p className="text-xs text-red-700">sans accès</p></div>
       </div>
@@ -57,8 +73,9 @@ export function UsersPage() {
               <div className="min-w-0 flex-1">
                 <p className="truncate font-medium">{u.full_name || 'Sans nom'}</p>
                 <p className="truncate text-xs text-ink-muted">{u.email}</p>
+                <RoleChips r={roles.get(u.id)} />
               </div>
-              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${cls}`}>{label}</span>
+              <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${cls}`}>{roles.get(u.id)?.is_admin || roles.get(u.id)?.projets.length ? 'Illimité' : label}</span>
             </button>
           )
         })}

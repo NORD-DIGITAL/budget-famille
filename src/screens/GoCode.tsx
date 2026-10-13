@@ -6,7 +6,7 @@ import { userInfo } from '../lib/prefs'
 import { ByNord, Sheet } from '../components/ui'
 import { Brand } from './Auth'
 import { APP_LABEL } from '../lib/version'
-import { isPartner } from '../lib/owner'
+import { isProjectMember } from '../lib/pro'
 
 export const PLANS: { days: number; label: string }[] = [
   { days: 30, label: '30 jours' }, { days: 90, label: '3 mois' }, { days: 180, label: '6 mois' }, { days: 365, label: '12 mois' },
@@ -92,7 +92,7 @@ export function SubscriptionCard({ onAdmin }: { onAdmin: () => void }) {
       <span className="flex-1"><b className="block">Administrateur · accès illimité</b><span className="text-sm text-white/70">Utilisateurs et Go Codes</span></span>
     </button>
   )
-  if (isPartner(session)) return (
+  if (isProjectMember(session)) return (
     <div className="mx-5 my-3 flex items-center gap-3 rounded-2xl bg-ink p-4 text-white">
       <ShieldCheck size={24} className="text-sun-500" />
       <span className="flex-1"><b className="block">Partenaire · accès illimité</b><span className="text-sm text-white/70">Aucun Go Code nécessaire</span></span>
