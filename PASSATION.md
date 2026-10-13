@@ -71,6 +71,13 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 - **Mot de passe oublié** sur l'écran de connexion : code envoyé par e-mail (`resetPasswordForEmail`), puis `verifyOtp(type 'recovery')` et nouveau mot de passe. **Réglage Supabase requis** : Authentication › Email Templates › Reset Password doit contenir `{{ .Token }}`.
 - SQL : `supabase/pro.sql` (après `business_pro.sql`).
 
+## Paiements (v3.10.0)
+- **Règle NORD DIGITAL des moyens de paiement** (toutes les apps) : Mobile Money (MVola, Orange Money, Airtel Money) = numéro à 10 chiffres commençant par 032/033/034/036/037/038 + référence ; Chèque = nom + numéro du chèque ; Virement = nom + numéro du virement ; Espèces et TPE = rien de plus. Côté appli : `src/lib/paiement.ts` + composant `PaymentFields` ; côté serveur : fonction `paiement_valide()`.
+- **Historique des paiements des clients** NORD DIGITAL (table `nd_paiements`) : date, montant, mois payé (abonnement), moyen + détails, note, pièce jointe. Cash : « déjà payé » et statut recalculés par le trigger `nd_paiements_sync`. Abonnement : mois impayés calculés depuis la date de déploiement (sinon 1er paiement / création).
+- **Pièces jointes** : bucket privé `pro-pieces` (10 Mo, images et PDF ; photos réduites à ~150 Ko), chemin `<projet>/<client>/<fichier>`, lisibles par les membres du projet seulement. Voir dans l'appli, télécharger (partage dans l'APK).
+- Projet Légumes : la même règle s'applique aux achats/ventes (colonnes `mm_numero`, `reference`, `payeur_nom`, `num_doc` ; contrainte `bp_regle_paiement` en `not valid` pour ne pas bloquer les anciennes lignes).
+- SQL : `supabase/paiements.sql` (après `pro.sql`).
+
 ## Fichiers clés
 - `src/App.tsx` : ordre des écrans = chargement → version → connexion → verrou → profil → Go Code → carnet.
 - `src/lib/data.tsx` : chargement des données.

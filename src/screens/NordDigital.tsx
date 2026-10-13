@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowLeft, Mail, Plus, Rocket, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Download, Eye, FileText, Mail, Paperclip, Plus, Rocket, Trash2, X } from 'lucide-react'
 import './business.css'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
@@ -9,6 +9,10 @@ import { isMissingTable } from '../lib/travail'
 import { fmtAr, fmtJour, loadPartners, partnerName, telIntl, toNum } from '../lib/business'
 import type { Contact, Partner } from '../lib/business'
 import { CallSheet, Partners } from './Business'
+import { PaymentFields } from './PaymentFields'
+import { cleanPay, emptyPay, payError, payLabel as moyenLabel } from '../lib/paiement'
+import type { PayDetails } from '../lib/paiement'
+import { PIECE_ACCEPT, deletePiece, downloadPiece, pieceUrl, uploadPiece } from '../lib/pieces'
 
 /* ---------- Projet NORD DIGITAL : Clients, Prospects, Idées (Sam-san + Andrinirina) ---------- */
 
@@ -33,38 +37,72 @@ export interface NdIdee {
   created_by?: string | null; created_at: string; updated_at: string
 }
 
+export interface NdPaiement extends PayDetails {
+  id: string; client_id: string; jour: string; montant: number; mois: string | null; note: string
+  piece_path: string | null; piece_nom: string | null; piece_type: string | null
+  created_by?: string | null; created_at: string
+}
+
 export const SECTEURS = ['Commerce / boutique', 'Restauration', 'Santé (pharmacie, cabinet)', 'Garage / auto', 'Immobilier', 'Éducation / école', 'Beauté / bien-être', 'Agriculture / légumes', 'Artisans / services', 'Transport / livraison', 'Événementiel', 'Association / ONG', 'Autre']
 export const SOLUTIONS = ['Site vitrine', 'Catalogue PDF + WhatsApp', 'Boutique en ligne', 'Plateforme de gestion (caisse, stock…)', 'App mobile', 'Prise de rendez-vous', 'Vidéo promo', 'Autre']
 const CLIENT_STATUTS: [NdClient['statut'], string][] = [['en_cours', 'En cours'], ['termine', 'Terminé'], ['vendu', 'Vendu']]
 
-/** Ce qu'un client doit encore : mensualité impayée (abonnement) ou reste du cash. */
-export function resteClient(c: NdClient) {
-  if (c.type_paiement === 'abonnement') return c.abo_statut === 'impaye' ? c.mensualite : 0
+const ym = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+export const moisLabel = (m: string) => { const [y, mo] = m.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' }).replace('.', '') }
+
+/** Abonnement : mois sans paiement depuis le début de l'abonnement (déploiement, 1er paiement ou création) jusqu'au mois en cours. */
+export function moisImpayes(c: NdClient, pays: NdPaiement[]): string[] {
+  if (c.type_paiement !== 'abonnement' || c.statut !== 'en_cours') return []
+  const start = (c.date_deploiement ?? c.premier_paiement ?? c.created_at).slice(0, 7)
+  const paid = new Set(pays.map((p) => p.mois ?? p.jour.slice(0, 7)))
+  const out: string[] = []
+  const d = new Date(Number(start.slice(0, 4)), Number(start.slice(5, 7)) - 1, 1), end = ym(new Date())
+  for (let i = 0; i < 120 && ym(d) <= end; i++) { if (!paid.has(ym(d))) out.push(ym(d)); d.setMonth(d.getMonth() + 1) }
+  return out
+}
+
+/** Ce qu'un client doit encore : calculé depuis l'historique des paiements quand il existe, sinon depuis la fiche. */
+export function resteClient(c: NdClient, pays: NdPaiement[] = []) {
+  if (c.type_paiement === 'abonnement') {
+    if (pays.length) return moisImpayes(c, pays).length * c.mensualite
+    return c.abo_statut === 'impaye' ? c.mensualite : 0
+  }
+  if (pays.length) return Math.max(0, c.montant_total - pays.reduce((s, p) => s + p.montant, 0))
   if (c.cash_statut === 'paye') return 0
   return c.cash_mode === 'echelonne' ? Math.max(0, c.montant_total - c.deja_paye) : c.montant_total
 }
-const payLabel = (c: NdClient) => c.type_paiement === 'abonnement'
-  ? `Abonnement ${fmtAr(c.mensualite)}/mois · ${c.abo_statut === 'paye' ? 'payé' : 'pas encore payé'}`
-  : `Cash ${c.cash_mode === 'echelonne' ? 'échelonné' : 'net'} · ${resteClient(c) > 0 ? `reste ${fmtAr(resteClient(c))}` : 'payé'}`
+const payLabel = (c: NdClient, pays: NdPaiement[]) => {
+  const r = resteClient(c, pays)
+  if (c.type_paiement === 'abonnement') {
+    const imp = pays.length ? moisImpayes(c, pays) : []
+    return `Abonnement ${fmtAr(c.mensualite)}/mois · ${pays.length ? (imp.length ? `${imp.length} mois impayé${imp.length > 1 ? 's' : ''}` : 'à jour') : c.abo_statut === 'paye' ? 'payé' : 'pas encore payé'}`
+  }
+  return `Cash ${c.cash_mode === 'echelonne' ? 'échelonné' : 'net'} · ${r > 0 ? `reste ${fmtAr(r)}` : 'payé'}`
+}
 
 export async function loadNd() {
   const num = (c: NdClient) => ({ ...c, mensualite: Number(c.mensualite) || 0, montant_total: Number(c.montant_total) || 0, deja_paye: Number(c.deja_paye) || 0, premier_paiement_montant: Number(c.premier_paiement_montant) || 0 })
-  const [c, p, i] = await Promise.all([
+  const [c, p, i, pa] = await Promise.all([
     supabase.from('nd_clients').select('*').order('updated_at', { ascending: false }).limit(1000),
     supabase.from('nd_prospects').select('*').order('updated_at', { ascending: false }).limit(1000),
     supabase.from('nd_idees').select('*').order('updated_at', { ascending: false }).limit(1000),
+    supabase.from('nd_paiements').select('*').order('jour', { ascending: false }).order('created_at', { ascending: false }).limit(5000),
   ])
   const err = c.error ?? p.error ?? i.error
   return {
     clients: ((c.data ?? []) as NdClient[]).map(num), prospects: (p.data ?? []) as NdProspect[], idees: (i.data ?? []) as NdIdee[],
+    paiements: ((pa.error ? [] : pa.data ?? []) as NdPaiement[]).map((x) => ({ ...x, montant: Number(x.montant) || 0 })),
+    paiementsActifs: !pa.error,
     missing: isMissingTable(err), error: err && !isMissingTable(err) ? err.message : '',
   }
 }
-export function ndStats(clients: NdClient[], prospects: NdProspect[]) {
+export function ndStats(clients: NdClient[], prospects: NdProspect[], pays: NdPaiement[] = []) {
+  const m = ym(new Date())
   return {
     clientsEnCours: clients.filter((c) => c.statut === 'en_cours').length,
     prospects: prospects.filter((p) => p.statut === 'en_cours').length,
-    reste: clients.reduce((s, c) => s + resteClient(c), 0),
+    reste: clients.reduce((s, c) => s + resteClient(c, pays.filter((p) => p.client_id === c.id)), 0),
+    encaisseMois: pays.filter((p) => p.jour.startsWith(m)).reduce((s, p) => s + p.montant, 0),
   }
 }
 
@@ -76,6 +114,8 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
   const [clients, setClients] = useState<NdClient[]>([])
   const [prospects, setProspects] = useState<NdProspect[]>([])
   const [idees, setIdees] = useState<NdIdee[]>([])
+  const [paiements, setPaiements] = useState<NdPaiement[]>([])
+  const [paysOn, setPaysOn] = useState(true)
   const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'error'>('loading')
   const [errMsg, setErrMsg] = useState('')
   const [partners, setPartners] = useState<Partner[]>([])
@@ -94,7 +134,7 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
     const r = await loadNd()
     if (r.missing) { setState('missing'); return }
     if (r.error) { setErrMsg(r.error); setState('error'); return }
-    setClients(r.clients); setProspects(r.prospects); setIdees(r.idees); setState('ready')
+    setClients(r.clients); setProspects(r.prospects); setIdees(r.idees); setPaiements(r.paiements); setPaysOn(r.paiementsActifs); setState('ready')
     setPartners(await loadPartners('nord-digital'))
   }, [])
   useEffect(() => { reload() }, [reload])
@@ -135,7 +175,28 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
     await reload(); go('clients'); setFiche({ kind: 'client', id: data as string }); flash('Prospect déployé : il est maintenant dans Clients')
   }
 
-  const st = ndStats(clients, prospects)
+  /** Paiement : création / modification / suppression ; le serveur recalcule « déjà payé » des clients cash. */
+  const savePay = async (id: string | null, row: Record<string, unknown>) => {
+    const qy = id ? supabase.from('nd_paiements').update(row).eq('id', id) : supabase.from('nd_paiements').insert(row)
+    const { data, error } = await qy.select().single()
+    if (error) return /regle_paiement/.test(error.message) ? 'Les détails du paiement ne respectent pas la règle (numéro, référence, nom).' : "Impossible d'enregistrer le paiement. Vérifie ta connexion."
+    const pay = { ...(data as NdPaiement), montant: Number((data as NdPaiement).montant) || 0 }
+    setPaiements((l) => (id ? l.map((x) => (x.id === id ? pay : x)) : [pay, ...l]).sort((a, b) => b.jour.localeCompare(a.jour) || b.created_at.localeCompare(a.created_at)))
+    flash(id ? 'Paiement modifié' : 'Paiement enregistré')
+    const c = await supabase.from('nd_clients').select('*').eq('id', pay.client_id).single()
+    if (c.data) { const n = c.data as NdClient; setClients((l) => l.map((x) => (x.id === n.id ? { ...n, mensualite: Number(n.mensualite) || 0, montant_total: Number(n.montant_total) || 0, deja_paye: Number(n.deja_paye) || 0, premier_paiement_montant: Number(n.premier_paiement_montant) || 0 } : x))) }
+    return ''
+  }
+  const delPay = async (p: NdPaiement) => {
+    const { error } = await supabase.from('nd_paiements').delete().eq('id', p.id)
+    if (error) { flash('Suppression impossible. Vérifie ta connexion.'); return false }
+    if (p.piece_path) await deletePiece(p.piece_path)
+    setPaiements((l) => l.filter((x) => x.id !== p.id)); flash('Paiement supprimé')
+    return true
+  }
+  const paysOf = (id: string) => paiements.filter((p) => p.client_id === id)
+
+  const st = ndStats(clients, prospects, paiements)
   const ready = state === 'ready'
   const qq = q.trim().toLowerCase()
   const match = (...xs: (string | null | undefined)[]) => !qq || xs.join(' ').toLowerCase().includes(qq)
@@ -162,7 +223,7 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
         {tab === 'clients' && (
           <div className="bp-stats">
             <div className="bp-stat"><div className="l">En cours</div><div className="v buy">{st.clientsEnCours}</div></div>
-            <div className="bp-stat"><div className="l">Clients</div><div className="v">{clients.length}</div></div>
+            <div className="bp-stat"><div className="l">Encaissé ce mois</div><div className="v">{fmtAr(st.encaisseMois)}</div></div>
             <div className="bp-stat"><div className="l">Reste à encaisser</div><div className="v sell">{fmtAr(st.reste)}</div></div>
           </div>
         )}
@@ -178,7 +239,7 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
               <button key={c.id} className="bp-item" onClick={() => setFiche({ kind: 'client', id: c.id })}>
                 <span className="n">{c.nom}{c.activite ? ` · ${c.activite}` : ''}</span>
                 <span className={`nd-st ${c.statut}`}>{CLIENT_STATUTS.find(([k]) => k === c.statut)?.[1]}</span>
-                <span className="s">{c.type_client} · {payLabel(c)}{c.domaine ? ` · ${c.domaine}` : ''}{who(c.created_by) ? ` · par ${who(c.created_by)}` : ''}</span>
+                <span className="s">{c.type_client} · {payLabel(c, paysOf(c.id))}{c.domaine ? ` · ${c.domaine}` : ''}{who(c.created_by) ? ` · par ${who(c.created_by)}` : ''}</span>
               </button>
             )) : <p className="bp-empty">{clients.length ? 'Aucun résultat.' : 'Aucun client. Ajoute-en un, ou déploie un prospect.'}</p>
           })()}
@@ -212,6 +273,7 @@ export function NordDigitalPage({ onBack }: { onBack: () => void }) {
       {toast && <div className="bp-toast" role="status">{toast}</div>}
 
       {fiche?.kind === 'client' && <ClientFiche key={fiche.id ?? 'new'} c={fiche.id ? clients.find((x) => x.id === fiche.id) ?? null : null} by={who} onClose={() => setFiche(null)} onCall={setCall}
+        pays={fiche.id ? paysOf(fiche.id) : []} paysOn={paysOn} onSavePay={savePay} onDelPay={delPay}
         onSave={(row) => save('client', fiche.id, row)} onDelete={() => fiche.id && del('client', fiche.id)} />}
       {fiche?.kind === 'prospect' && <ProspectFiche key={fiche.id ?? 'new'} p={fiche.id ? prospects.find((x) => x.id === fiche.id) ?? null : null} onClose={() => setFiche(null)} onCall={setCall}
         onSave={(row) => save('prospect', fiche.id, row)} onDelete={() => fiche.id && del('prospect', fiche.id)} onDeploy={() => fiche.id && deploy(fiche.id)} />}
@@ -275,7 +337,14 @@ const SaveBtn = ({ isNew, dirty, busy, ok }: { isNew: boolean; dirty: boolean; b
   <button type="submit" className="bp-btn primary" disabled={busy || !dirty || !ok}>{busy ? 'Enregistrement…' : isNew ? 'Ajouter' : dirty ? 'Enregistrer' : 'Enregistré'}</button>
 
 /* ---------- Fiche client ---------- */
-function ClientFiche({ c, by, onClose, onSave, onDelete, onCall }: { c: NdClient | null; by: (id?: string | null) => string; onClose: () => void; onSave: (row: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onCall: (c: Contact) => void }) {
+function ClientFiche({ c, by, onClose, onSave, onDelete, onCall, pays, paysOn, onSavePay, onDelPay }: {
+  c: NdClient | null; by: (id?: string | null) => string; onClose: () => void; onSave: (row: Record<string, unknown>) => Promise<unknown>; onDelete: () => void; onCall: (c: Contact) => void
+  pays: NdPaiement[]; paysOn: boolean; onSavePay: (id: string | null, row: Record<string, unknown>) => Promise<string>; onDelPay: (p: NdPaiement) => Promise<boolean>
+}) {
+  const [pay, setPay] = useState<NdPaiement | 'new' | null>(null)
+  useBackHandler(!!pay, () => setPay(null))
+  const hasPays = pays.length > 0
+  const total = pays.reduce((s, p) => s + p.montant, 0)
   const f = useDraft({
     nom: c?.nom ?? '', email: c?.email ?? '', tel: c?.tel ?? '', activite: c?.activite ?? '', type_client: (c?.type_client ?? 'GP') as TypeClient,
     hebergement: c?.hebergement ?? 'nord-digital', hebergement_autre: c?.hebergement_autre ?? '', domaine: c?.domaine ?? '',
@@ -328,7 +397,9 @@ function ClientFiche({ c, by, onClose, onSave, onDelete, onCall }: { c: NdClient
       {d.type_paiement === 'abonnement' ? (
         <div className="bp-two">
           <label className="bp-fld">Mensualité (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.mensualite} onChange={(e) => f.set({ mensualite: e.target.value })} /></label>
-          <Field label="Ce mois"><Seg value={d.abo_statut} options={[['paye', 'Payé'], ['impaye', 'Pas encore']]} onChange={(v) => f.set({ abo_statut: v })} /></Field>
+          {hasPays && c
+            ? <Field label="Mois impayés">{(() => { const imp = moisImpayes(c, pays); return <p className="bp-hint" style={{ color: imp.length ? 'var(--buy)' : 'var(--sell)' }}>{imp.length ? imp.map(moisLabel).join(', ') : 'Aucun, à jour.'}</p> })()}</Field>
+            : <Field label="Ce mois"><Seg value={d.abo_statut} options={[['paye', 'Payé'], ['impaye', 'Pas encore']]} onChange={(v) => f.set({ abo_statut: v })} /></Field>}
         </div>
       ) : (
         <>
@@ -338,11 +409,33 @@ function ClientFiche({ c, by, onClose, onSave, onDelete, onCall }: { c: NdClient
           </div>
           <div className="bp-two">
             <label className="bp-fld">Montant total (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.montant_total} onChange={(e) => f.set({ montant_total: e.target.value })} /></label>
-            {d.cash_mode === 'echelonne' && <label className="bp-fld">Déjà payé (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.deja_paye} onChange={(e) => f.set({ deja_paye: e.target.value })} /></label>}
+            {d.cash_mode === 'echelonne' && !hasPays && <label className="bp-fld">Déjà payé (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.deja_paye} onChange={(e) => f.set({ deja_paye: e.target.value })} /></label>}
           </div>
-          {d.cash_mode === 'echelonne' && toNum(d.montant_total) > 0 && <p className="bp-hint" style={{ color: reste > 0 ? 'var(--buy)' : 'var(--sell)' }}>{reste > 0 ? `Reste à payer : ${fmtAr(reste)}` : 'Entièrement payé.'}</p>}
+          {hasPays && toNum(d.montant_total) > 0
+            ? <p className="bp-hint" style={{ color: toNum(d.montant_total) - total > 0 ? 'var(--buy)' : 'var(--sell)' }}>Payé {fmtAr(total)} (historique) · {toNum(d.montant_total) - total > 0 ? `reste à payer ${fmtAr(toNum(d.montant_total) - total)}` : 'entièrement payé'}</p>
+            : d.cash_mode === 'echelonne' && toNum(d.montant_total) > 0 && <p className="bp-hint" style={{ color: reste > 0 ? 'var(--buy)' : 'var(--sell)' }}>{reste > 0 ? `Reste à payer : ${fmtAr(reste)}` : 'Entièrement payé.'}</p>}
         </>
       )}
+      {c && (
+        <div className="bp-sec">
+          <div className="bp-row"><span className="bp-label">Historique des paiements{hasPays ? ` · ${fmtAr(total)}` : ''}</span>
+            <button type="button" className="bp-btn primary sm" disabled={!paysOn} onClick={() => setPay('new')}>+ Paiement</button></div>
+          {!paysOn && <p className="bp-hint">L'historique des paiements n'est pas encore activé sur le serveur.</p>}
+          <div className="bp-txs">
+            {pays.map((p) => (
+              <button type="button" key={p.id} className="bp-tx" onClick={() => setPay(p)}>
+                <span className="a"><span className="bp-tag vente">{p.moyen}</span><span>{fmtJour(p.jour)}{p.mois && c.type_paiement === 'abonnement' ? ` · ${moisLabel(p.mois)}` : ''}</span></span>
+                <span className="m vente">{fmtAr(p.montant)}</span>
+                <span className="d">{moyenLabel(p)}{p.note ? ` · ${p.note}` : ''}{p.piece_path ? <> · <Paperclip size={12} style={{ verticalAlign: -1 }} /> pièce jointe</> : null}{by(p.created_by) ? ` · par ${by(p.created_by)}` : ''}</span>
+              </button>
+            ))}
+            {paysOn && !hasPays && <p className="bp-hint">Aucun paiement enregistré. Chaque paiement ajouté ici met à jour le reste à payer.</p>}
+          </div>
+        </div>
+      )}
+      {pay && c && <PaiementSheet client={c} p={pay === 'new' ? null : pay} onClose={() => setPay(null)}
+        onSave={async (row) => { const e = await onSavePay(pay === 'new' ? null : pay.id, { ...row, client_id: c.id }); if (!e) setPay(null); return e }}
+        onDelete={async () => { if (pay !== 'new' && await onDelPay(pay)) setPay(null) }} />}
       <label className="bp-fld">Notes (idées de conception, accès, demandes…)<textarea className="bp-in" style={{ minHeight: 120 }} value={d.notes} onChange={(e) => f.set({ notes: e.target.value })} /></label>
       {c && <p className="bp-hint">Ajouté le {fmtJour(c.created_at.slice(0, 10))}{by(c.created_by) ? ` par ${by(c.created_by)}` : ''}.</p>}
     </Sheet>
@@ -429,5 +522,100 @@ function IdeeFiche({ i, onClose, onSave, onDelete }: { i: NdIdee | null; onClose
       </div>
       <label className="bp-fld">Note<textarea className="bp-in" style={{ minHeight: 140 }} autoFocus={!i} placeholder="L'idée, à qui la proposer, le prix envisagé…" value={d.note} onChange={(e) => f.set({ note: e.target.value })} /></label>
     </Sheet>
+  )
+}
+
+/* ---------- Paiement d'un client (avec pièce jointe) ---------- */
+function PaiementSheet({ client, p, onClose, onSave, onDelete }: {
+  client: NdClient; p: NdPaiement | null; onClose: () => void; onSave: (row: Record<string, unknown>) => Promise<string>; onDelete: () => void
+}) {
+  const abo = client.type_paiement === 'abonnement'
+  const now = new Date()
+  const [jour, setJour] = useState(p?.jour ?? now.toLocaleDateString('sv-SE'))
+  const [montant, setMontant] = useState(p ? String(p.montant) : abo && client.mensualite ? String(client.mensualite) : '')
+  const [mois, setMois] = useState(p?.mois ?? ym(now))
+  const [det, setDet] = useState<PayDetails>(p ? { moyen: p.moyen, mm_numero: p.mm_numero, reference: p.reference, payeur_nom: p.payeur_nom, num_doc: p.num_doc } : emptyPay('MVola'))
+  const [note, setNote] = useState(p?.note ?? '')
+  const [file, setFile] = useState<File | null>(null)
+  const [dropPiece, setDropPiece] = useState(false)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [armed, setArmed] = useState(false)
+  const [view, setView] = useState<string | null>(null)
+  const [dl, setDl] = useState('')
+  useBackHandler(!!view, () => setView(null))
+
+  const submit = async () => {
+    const m = toNum(montant)
+    if (!m) return setErr('Indique le montant payé.')
+    const e = payError(det); if (e) return setErr(e)
+    setBusy(true); setErr('')
+    let piece: { piece_path: string | null; piece_nom: string | null; piece_type: string | null } | null = null
+    if (file) {
+      const up = await uploadPiece('nord-digital', client.id, file)
+      if (typeof up === 'string') { setBusy(false); return setErr(up) }
+      piece = { piece_path: up.path, piece_nom: up.nom, piece_type: up.type }
+    } else if (dropPiece) piece = { piece_path: null, piece_nom: null, piece_type: null }
+    const err2 = await onSave({ jour, montant: m, mois: abo ? mois : null, note: note.trim(), ...cleanPay(det), ...(piece ?? {}) })
+    if (err2) { if (piece?.piece_path) await deletePiece(piece.piece_path); setBusy(false); return setErr(err2) }
+    if (p?.piece_path && (file || dropPiece)) await deletePiece(p.piece_path)
+    setBusy(false)
+  }
+  const open = async () => { if (!p?.piece_path) return; const u = await pieceUrl(p.piece_path); if (u) setView(u); else setDl('Pièce introuvable.') }
+  const download = async () => { if (!p?.piece_path) return; setDl('Téléchargement…'); const e = await downloadPiece({ path: p.piece_path, nom: p.piece_nom ?? 'piece', type: p.piece_type ?? '' }); setDl(e ?? '') }
+  const isPdf = p?.piece_type === 'application/pdf'
+
+  return (
+    <div className="bp-ov top" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="bp-sheet" role="dialog" aria-modal="true" aria-label="Paiement">
+        <div className="bp-sh-head"><h2>{p ? 'Paiement' : 'Nouveau paiement'} · {client.nom}</h2><button type="button" className="bp-iconbtn" aria-label="Fermer" onClick={onClose}><X size={22} /></button></div>
+        <div className="bp-sh-body">
+          <div className="bp-two">
+            <label className="bp-fld">Date<input className="bp-in" type="date" value={jour} onChange={(e) => setJour(e.target.value)} /></label>
+            <label className="bp-fld">Montant (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" autoFocus={!p} value={montant} onChange={(e) => setMontant(e.target.value)} /></label>
+          </div>
+          {abo && <label className="bp-fld">Mois payé<input className="bp-in" type="month" value={mois} onChange={(e) => setMois(e.target.value)} /></label>}
+          <PaymentFields value={det} onChange={setDet} idPrefix="ndp" />
+          <label className="bp-fld">Note<input className="bp-in" placeholder="ex. 2e tranche" value={note} onChange={(e) => setNote(e.target.value)} /></label>
+
+          <div className="bp-sec">
+            <span className="bp-label">Pièce jointe (photo du reçu, capture MVola, PDF…)</span>
+            {p?.piece_path && !file && !dropPiece && (
+              <div className="nd-piece">
+                <FileText size={18} /><span>{p.piece_nom ?? 'Pièce jointe'}</span>
+                <button type="button" className="bp-btn sm" onClick={open}><Eye size={16} /> Voir</button>
+                <button type="button" className="bp-btn sm" onClick={download} aria-label="Télécharger"><Download size={16} /></button>
+                <button type="button" className="bp-iconbtn" style={{ width: 32, height: 32 }} aria-label="Retirer la pièce" onClick={() => setDropPiece(true)}><Trash2 size={16} /></button>
+              </div>
+            )}
+            {dl && <p className="bp-hint">{dl}</p>}
+            {(!p?.piece_path || file || dropPiece) && (
+              <label className="nd-file">
+                <Paperclip size={18} /><span>{file ? file.name : 'Ajouter une photo ou un PDF'}</span>
+                <input type="file" accept={PIECE_ACCEPT} onChange={(e) => { setFile(e.target.files?.[0] ?? null); setErr('') }} />
+              </label>
+            )}
+          </div>
+          {err && <p className="bp-err" role="alert">{err}</p>}
+        </div>
+        <div className="bp-sh-foot">
+          {p ? <button type="button" className={`bp-btn danger sm${armed ? ' armed' : ''}`} onClick={() => { if (armed) onDelete(); else { setArmed(true); window.setTimeout(() => setArmed(false), 4000) } }}>{armed ? 'Confirmer la suppression' : 'Supprimer'}</button> : <span />}
+          <button type="button" className="bp-btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
+        </div>
+      </div>
+      {view && (
+        <div className="bp-ov top" style={{ zIndex: 90 }} onClick={(e) => { if (e.target === e.currentTarget) setView(null) }}>
+          <div className="bp-sheet" role="dialog" aria-modal="true" aria-label="Pièce jointe">
+            <div className="bp-sh-head"><h2>{p?.piece_nom ?? 'Pièce jointe'}</h2><button type="button" className="bp-iconbtn" aria-label="Fermer" onClick={() => setView(null)}><X size={22} /></button></div>
+            <div className="bp-sh-body">
+              {isPdf
+                ? <a className="bp-btn primary" href={view} target="_blank" rel="noopener"><FileText size={18} /> Ouvrir le PDF</a>
+                : <img src={view} alt="Pièce jointe du paiement" style={{ width: '100%', borderRadius: 10, background: '#fff' }} />}
+            </div>
+            <div className="bp-sh-foot"><span /><button type="button" className="bp-btn" onClick={download}><Download size={16} /> Télécharger</button></div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }

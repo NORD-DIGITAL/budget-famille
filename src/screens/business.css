@@ -213,3 +213,9 @@ textarea.bp-in { min-height: 90px; resize: vertical; }
 .nd-deploy { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px dashed var(--accent); border-radius: 12px; background: var(--accent-soft); }
 .bp a.bp-btn { color: var(--fg); }
 .bp a.bp-btn.primary { color: var(--on-accent); }
+/* Pièces jointes des paiements */
+.nd-piece { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; background: var(--panel-2); min-width: 0; }
+.nd-piece > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nd-file { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--panel-2); color: var(--muted); cursor: pointer; font-size: 14px; position: relative; }
+.nd-file:hover { border-color: var(--accent); color: var(--fg); }
+.nd-file input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }

@@ -39,7 +39,7 @@ function useSummary(projets: Projet[]) {
         v: b.txs.filter((t) => t.type === 'vente' && t.jour.startsWith(m)).reduce((x, t) => x + t.montant, 0),
         saison: b.fournisseurs.filter((f) => (f.mois ?? []).includes(mo)).length,
       } : null
-      const nd = n && !n.missing && !n.error ? ndStats(n.clients, n.prospects) : null
+      const nd = n && !n.missing && !n.error ? ndStats(n.clients, n.prospects, n.paiements) : null
       setS({ work, legumes, nd })
     })
     return () => { alive = false }

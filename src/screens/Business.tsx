@@ -6,14 +6,17 @@ import { useData } from '../lib/data'
 import { useBackHandler } from '../lib/back'
 import { ymd } from '../lib/travail'
 import {
-  AUTRES, MOIS, MOIS_LONG, PAIEMENTS, PRODUITS, REGIONS, TABLE, UNITES,
+  AUTRES, MOIS, MOIS_LONG, PRODUITS, REGIONS, TABLE, UNITES,
   allProduits, contactProduits, fmtAr, fmtJour, fmtQ, initials, kindOf, loadBusiness, loadPartners, partnerName, splitAutres, telIntl, telLocal, toNum, txOf,
 } from '../lib/business'
 import type { BpTx, Contact, Kind, Partner, TxType } from '../lib/business'
+import { PaymentFields } from './PaymentFields'
+import { cleanPay, emptyPay, payError, payLabel as moyenLabel } from '../lib/paiement'
+import type { PayDetails } from '../lib/paiement'
 
 type Tab = Kind | 'tx' | 'bilan'
 type Data = { fournisseurs: Contact[]; clients: Contact[]; txs: BpTx[] }
-type TxDraft = { id: string | null; type: TxType; contact_id: string; produit: string; autre: string; qte: string; unite: string; prix_u: string; montant: string; jour: string; paiement: string; note: string; manual: boolean }
+type TxDraft = { id: string | null; type: TxType; contact_id: string; produit: string; autre: string; qte: string; unite: string; prix_u: string; montant: string; jour: string; paiement: string; note: string; manual: boolean; pay: PayDetails }
 
 const TAB_KEY = 'bf-bp-tab'
 const curMonth = () => new Date().getMonth() + 1
@@ -88,12 +91,14 @@ export function LegumesPage({ onBack }: { onBack: () => void }) {
     if (!d.contact_id) return d.type === 'achat' ? 'Choisis un fournisseur.' : 'Choisis un client.'
     if (!produit) return 'Choisis un produit.'
     if (!montant) return 'Indique la quantité et le prix, ou le montant total.'
+    const pe = payError(d.pay); if (pe) return pe
+    const pay = cleanPay(d.pay)
     const c = list(kindOf(d.type)).find((x) => x.id === d.contact_id)
     const prev = d.id ? data.txs.find((x) => x.id === d.id) : null
-    const row = { type: d.type, contact_id: d.contact_id, contact_nom: c?.nom ?? prev?.contact_nom ?? '', produit, qte, unite: d.unite, prix_u, montant, jour: d.jour || ymd(new Date()), paiement: d.paiement, note: d.note.trim(), updated_at: new Date().toISOString() }
+    const row = { type: d.type, contact_id: d.contact_id, contact_nom: c?.nom ?? prev?.contact_nom ?? '', produit, qte, unite: d.unite, prix_u, montant, jour: d.jour || ymd(new Date()), paiement: pay.moyen, mm_numero: pay.mm_numero, reference: pay.reference, payeur_nom: pay.payeur_nom, num_doc: pay.num_doc, note: d.note.trim(), updated_at: new Date().toISOString() }
     const q = d.id ? supabase.from('bp_transactions').update(row).eq('id', d.id) : supabase.from('bp_transactions').insert(row)
     const { data: saved, error } = await q.select().single()
-    if (error) return "Enregistrement impossible. Vérifie ta connexion puis réessaie."
+    if (error) return /regle_paiement|mm_numero|column/.test(error.message) ? 'Les détails du paiement ne sont pas acceptés par le serveur (numéro, référence ou nom manquant).' : "Enregistrement impossible. Vérifie ta connexion puis réessaie."
     const t = { ...(saved as BpTx), qte, prix_u, montant }
     setData((x) => ({ ...x, txs: (d.id ? x.txs.map((y) => (y.id === d.id ? t : y)) : [t, ...x.txs]).sort(byJour) }))
     flash(d.type === 'achat' ? 'Achat enregistré' : 'Vente enregistrée')
@@ -106,10 +111,10 @@ export function LegumesPage({ onBack }: { onBack: () => void }) {
     return true
   }
 
-  const newTx = (type: TxType, contact_id = '') => setTx({ id: null, type, contact_id, produit: '', autre: '', qte: '', unite: 'kg', prix_u: '', montant: '', jour: ymd(new Date()), paiement: 'Espèces', note: '', manual: false })
+  const newTx = (type: TxType, contact_id = '') => setTx({ id: null, type, contact_id, produit: '', autre: '', qte: '', unite: 'kg', prix_u: '', montant: '', jour: ymd(new Date()), paiement: 'Espèces', note: '', manual: false, pay: emptyPay() })
   const editTx = (t: BpTx) => setTx({
     id: t.id, type: t.type, contact_id: t.contact_id ?? '', produit: t.produit, autre: '', qte: String(t.qte || ''), unite: t.unite, prix_u: String(t.prix_u || ''),
-    montant: String(t.montant || ''), jour: t.jour, paiement: t.paiement, note: t.note, manual: Math.round(t.qte * t.prix_u) !== Math.round(t.montant),
+    montant: String(t.montant || ''), jour: t.jour, paiement: t.paiement, note: t.note, pay: { moyen: t.paiement, mm_numero: t.mm_numero ?? '', reference: t.reference ?? '', payeur_nom: t.payeur_nom ?? '', num_doc: t.num_doc ?? '' }, manual: Math.round(t.qte * t.prix_u) !== Math.round(t.montant),
   })
   const nameOf = (t: BpTx) => list(kindOf(t.type)).find((c) => c.id === t.contact_id)?.nom || t.contact_nom || 'Contact supprimé'
 
@@ -230,7 +235,7 @@ function TxRow({ t, who, by, onOpen }: { t: BpTx; who?: string; by?: string; onO
     <button className="bp-tx" onClick={onOpen}>
       <span className="a"><span className={`bp-tag ${t.type}`}>{t.type === 'achat' ? 'Achat' : 'Vente'}</span><span>{t.produit}{who ? ` · ${who}` : ''}</span></span>
       <span className={`m ${t.type}`}>{t.type === 'achat' ? '−' : '+'} {fmtAr(t.montant)}</span>
-      <span className="d">{fmtJour(t.jour)} · {fmtQ(t.qte)} {t.unite} × {fmtAr(t.prix_u)} · {t.paiement}{t.note ? ` · ${t.note}` : ''}{by ? ` · par ${by}` : ''}</span>
+      <span className="d">{fmtJour(t.jour)} · {fmtQ(t.qte)} {t.unite} × {fmtAr(t.prix_u)} · {moyenLabel({ moyen: t.paiement, mm_numero: t.mm_numero, reference: t.reference, payeur_nom: t.payeur_nom, num_doc: t.num_doc })}{t.note ? ` · ${t.note}` : ''}{by ? ` · par ${by}` : ''}</span>
     </button>
   )
 }
@@ -413,10 +418,8 @@ function TxSheet({ draft: d, setDraft, data, produits, onClose, onSave, onDelete
             <label className="bp-fld">Prix unitaire (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="0" value={d.prix_u} onChange={(e) => set({ prix_u: e.target.value })} /></label>
           </div>
           <label className="bp-fld">Montant total (Ar)<input className="bp-in mono" inputMode="numeric" placeholder="Calculé automatiquement" value={d.montant} onChange={(e) => setDraft({ ...d, montant: e.target.value, manual: e.target.value.trim() !== '' })} /></label>
-          <div className="bp-two">
-            <label className="bp-fld">Date<input className="bp-in" type="date" value={d.jour} onChange={(e) => set({ jour: e.target.value })} /></label>
-            <label className="bp-fld">Paiement<select className="bp-in" value={d.paiement} onChange={(e) => set({ paiement: e.target.value })}>{PAIEMENTS.map((p) => <option key={p}>{p}</option>)}</select></label>
-          </div>
+          <label className="bp-fld">Date<input className="bp-in" type="date" value={d.jour} onChange={(e) => set({ jour: e.target.value })} /></label>
+          <PaymentFields value={d.pay} onChange={(pay) => set({ pay })} idPrefix="bpt" />
           <label className="bp-fld">Note<input className="bp-in" placeholder="Qualité, livraison, reste à payer…" value={d.note} onChange={(e) => set({ note: e.target.value })} /></label>
           {err && <p className="bp-err" role="alert">{err}</p>}
         </div>

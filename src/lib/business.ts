@@ -7,7 +7,7 @@ export const PRODUITS = ['Pomme de terre', 'Oignon', 'Carotte', 'Courgette', 'Sa
 export const AUTRES = 'Autres'
 export const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc']
 export const MOIS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre']
-export const PAIEMENTS = ['Espèces', 'MVola', 'Orange Money', 'Airtel Money', 'Chèque', 'TPE']
+export { MOYENS as PAIEMENTS } from './paiement'
 export const UNITES = ['kg', 'sac', 'daba', 'garaba', 'kapoaka', 'pièce']
 export const REGIONS = ['Analamanga', 'Vakinankaratra', 'Itasy', 'Bongolava', 'Haute Matsiatra', "Amoron'i Mania", 'Vatovavy', 'Fitovinany', 'Ihorombe', 'Atsimo-Atsinanana', 'Atsinanana', 'Analanjirofo', 'Alaotra-Mangoro', 'Boeny', 'Sofia', 'Betsiboka', 'Melaky', 'Atsimo-Andrefana', 'Androy', 'Anosy', 'Menabe', 'Diana', 'Sava']
 
@@ -22,6 +22,7 @@ export interface Contact {
 export interface BpTx {
   id: string; type: TxType; contact_id: string | null; contact_nom: string; produit: string
   qte: number; unite: string; prix_u: number; montant: number; jour: string; paiement: string; note: string
+  mm_numero?: string; reference?: string; payeur_nom?: string; num_doc?: string
   created_by?: string | null; created_at: string; updated_at: string
 }
 
