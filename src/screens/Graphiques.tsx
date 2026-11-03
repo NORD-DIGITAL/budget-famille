@@ -3,6 +3,9 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useData } from '../lib/data'
 import { addMonths, daysInMonth, fmt, monthShort, signed, todayISO } from '../lib/format'
+import { effect } from '../lib/ledger'
+
+const addDays = (iso: string, n: number) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10) }
 import type { Kind } from '../lib/types'
 import { BareIcon, Empty, Header, IconTile, Segmented, Progress } from '../components/ui'
 import { MonthBar } from '../components/DatePicker'
@@ -14,7 +17,7 @@ const short = (n: number) => Math.abs(n) >= 1e6 ? (n / 1e6).toFixed(1).replace('
 export default function GraphiquesScreen() {
   const [tab, setTab] = useState<Tab>('global')
   const [kind, setKind] = useState<Kind>('depense')
-  const { txs, month, catById, cur, accounts, rootOf, goals, debts } = useData()
+  const { txs, month, catById, cur, rootOf, goals, debts, ledger, balanceAt } = useData()
   const [open, setOpen] = useState<string | null>(null)
   const [showLists, setShowLists] = useState(false)
 
@@ -58,12 +61,11 @@ export default function GraphiquesScreen() {
   }), [txs, month])
 
   const net = useMemo(() => {
-    const start = accounts.reduce((a, x) => a + x.initial_balance, 0)
     const first = `${month}-01`
-    let bal = start + txs.filter((t) => t.occurred_on < first).reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)
+    let bal = balanceAt(addDays(first, -1))
     const days = daysInMonth(month)
     const byDay = new Map<string, number>()
-    for (const t of txs) if (t.occurred_on.startsWith(month)) byDay.set(t.occurred_on, (byDay.get(t.occurred_on) ?? 0) + (t.kind === 'revenu' ? t.amount : -t.amount))
+    for (const e of ledger) if (e.date.startsWith(month)) byDay.set(e.date, (byDay.get(e.date) ?? 0) + effect(e))
     const points = []
     const rows: { day: string; delta: number; bal: number }[] = []
     const today = todayISO()
@@ -76,7 +78,7 @@ export default function GraphiquesScreen() {
       if (delta) rows.push({ day: iso, delta, bal })
     }
     return { points, rows: rows.reverse(), end: bal }
-  }, [txs, month, accounts])
+  }, [ledger, balanceAt, month])
 
   return (
     <>
@@ -94,7 +96,7 @@ export default function GraphiquesScreen() {
         {tab === 'global' && (() => {
           const inc = revAll.total, exp = depAll.total, sol = inc - exp
           const first = `${month}-01`
-          const report = accounts.reduce((a, x) => a + x.initial_balance, 0) + txs.filter((t) => t.occurred_on < first).reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)
+          const report = balanceAt(addDays(first, -1))
           const rate = inc > 0 ? Math.round((sol / inc) * 100) : null
           const max = Math.max(inc, exp, 1)
           const monthTx = txs.filter((t) => t.occurred_on.startsWith(month))

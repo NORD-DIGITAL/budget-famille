@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Briefcase, ChevronRight, Leaf, MessageCircle, NotebookPen, Rocket, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, Briefcase, ChevronRight, Leaf, MessageCircle, NotebookPen, Rocket, Sparkles, TrendingUp, X } from 'lucide-react'
 import './business.css'
 import { supabase } from '../lib/supabase'
 import { useData } from '../lib/data'
@@ -13,8 +13,10 @@ import type { Projet } from '../lib/pro'
 import { TravailPage } from './Travail'
 import { LegumesPage } from './Business'
 import { NordDigitalPage, loadNd, ndStats } from './NordDigital'
+import { InvestPanel, InvestSheet, InvProjectPage } from './Invest'
+import { openProject } from '../lib/invest'
 
-export type ProView = 'hub' | 'travail' | 'legumes' | 'nd'
+export type ProView = 'hub' | 'travail' | 'legumes' | 'nd' | 'projet'
 
 /* ---------- Résumés (hub et carte d'accueil) ---------- */
 type Summary = { work: { next: string; todo: number } | null; legumes: { a: number; v: number; saison: number } | null; nd: { clientsEnCours: number; prospects: number; reste: number } | null }
@@ -53,11 +55,13 @@ export function ProPage({ onBack, initial = 'hub' }: { onBack?: () => void; init
   const pro = usePro(session)
   const [view, setView] = useState<ProView>(initial)
   const [ask, setAsk] = useState(false)
+  const [invest, setInvest] = useState(false)
   const back = initial === 'hub' ? () => setView('hub') : onBack ?? (() => setView('hub'))
   useBackHandler(view !== 'hub' && initial === 'hub', () => setView('hub'))
   const s = useSummary(pro.projets)
   const has = (p: Projet) => pro.projets.includes(p)
 
+  if (view === 'projet') return <InvProjectPage onBack={back} />
   if (view === 'legumes' && has('legumes')) return <LegumesPage onBack={back} />
   if (view === 'nd' && has('nord-digital')) return <NordDigitalPage onBack={back} />
   if (view === 'travail') return (
@@ -75,6 +79,7 @@ export function ProPage({ onBack, initial = 'hub' }: { onBack?: () => void; init
       <header className="bp-top pt-safe">
         {onBack && <button className="bp-iconbtn" aria-label="Retour" onClick={onBack}><ArrowLeft size={24} strokeWidth={1.8} /></button>}
         <h1 style={onBack ? undefined : { paddingLeft: 4 }}>Business Pro</h1>
+        <button className="bp-btn primary sm" onClick={() => setInvest(true)}><TrendingUp size={16} /> Investir</button>
         <span className="bp-pro-tag">PRO</span>
       </header>
 
@@ -103,6 +108,8 @@ export function ProPage({ onBack, initial = 'hub' }: { onBack?: () => void; init
         )}
       </div>
 
+      <InvestPanel onOpen={(id) => { openProject(id); setView('projet') }} />
+
       <section className="bp-panel" style={{ marginTop: 14 }}>
         <div className="bp-row"><h2 style={{ fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Sparkles size={18} /> Autres fonctions à la demande</h2></div>
         <p className="bp-hint">Il te manque un outil pour ton activité (stock, rendez-vous clients, devis…) ? Propose-le : NORD DIGITAL peut l'ajouter à ton espace PRO.</p>
@@ -115,6 +122,7 @@ export function ProPage({ onBack, initial = 'hub' }: { onBack?: () => void; init
 
       <p className="bp-foot">BY <b>NORD DIGITAL</b></p>
       {ask && <AskSheet onClose={() => setAsk(false)} />}
+      {invest && <InvestSheet onClose={() => setInvest(false)} onDone={() => setView('projet')} />}
     </div>
   )
 }

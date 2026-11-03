@@ -20,10 +20,17 @@ export interface Goal {
   kind: GoalKind; support: 'banque' | 'mvola' | 'orange' | null; bank: string | null; phone: string | null
   monthly_day: number | null; monthly_amount: number | null
 }
-export interface SavingsMove { id: string; goal_id: string; amount: number; method: string | null; ref: string | null; note: string | null; moved_on: string }
-export interface DebtPayment { id: string; debt_id: string; amount: number; method: string | null; ref: string | null; note: string | null; paid_on: string }
+export interface SavingsMove { id: string; goal_id: string; amount: number; method: string | null; ref: string | null; note: string | null; moved_on: string; account_id?: string | null }
+export interface DebtPayment { id: string; debt_id: string; amount: number; method: string | null; ref: string | null; note: string | null; paid_on: string; account_id?: string | null }
 export interface Attachment { id: string; entity: 'goal' | 'debt'; entity_id: string; move_id: string | null; path: string; size: number; owner: string }
-export interface Debt { id: string; direction: 'je_dois' | 'on_me_doit'; person: string; amount: number; paid: number; due_date: string | null; note: string | null }
+export interface Debt { id: string; direction: 'je_dois' | 'on_me_doit'; person: string; amount: number; paid: number; due_date: string | null; note: string | null; account_id?: string | null; lent_on?: string | null }
+/** Transfert entre deux comptes du portefeuille (v3.11). */
+export interface Transfer { id: string; from_account: string; to_account: string; amount: number; moved_on: string; ref: string | null; note: string | null; created_at: string }
+/** Projet d'investissement de Business Pro (v3.11). */
+export type InvType = 'vente' | 'partenariat' | 'autre'
+export interface InvProject { id: string; name: string; activite: string; type: InvType; type_autre: string; archived: boolean; created_at: string }
+export type InvKind = 'capital' | 'depense' | 'revenu' | 'versement'
+export interface InvMove { id: string; project_id: string; kind: InvKind; amount: number; account_id: string | null; moved_on: string; note: string | null; created_at: string }
 export interface Child { name: string; age: number | null; school?: boolean }
 export interface Profile {
   id: string; full_name: string | null; birth_date: string | null; sex: 'homme' | 'femme' | null

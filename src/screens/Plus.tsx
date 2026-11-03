@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Briefcase, Wallet, ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, SlidersHorizontal, Target, UserRound, Users } from 'lucide-react'
+import { Briefcase, Wallet, ChevronRight, NotebookPen, Inbox, ShieldCheck, Lightbulb, ShoppingCart, Fingerprint, ArrowDownLeft, ArrowUpRight, FileDown, FolderTree, HandCoins, Landmark, LogOut, PieChart, PiggyBank, Share2, SlidersHorizontal, Target, UserRound, Users, ScrollText } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { saveTextFile, slug, stamp, toCsv } from '../lib/files'
@@ -17,9 +17,9 @@ import { THEMES, SIZES, applySize, getSize, setUserTheme, useUserTheme, themeFor
 import { useEffect } from 'react'
 import { biometricAvailable, biometricEnabled, disableBiometric, enableBiometric } from '../lib/lock'
 
-export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail' | 'business' | 'portefeuille' | 'organiser'
+export type SubPage = 'budget' | 'objectifs' | 'dettes' | 'categories' | 'comptes' | 'membres' | 'partage' | 'profil' | 'courses' | 'remarques' | 'inbox' | 'users' | 'confidentialite' | 'travail' | 'business' | 'portefeuille' | 'organiser' | 'journal' | 'projet'
 export const SUB_TITLES: Record<SubPage, string> = {
-  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail', business: 'Business Pro', portefeuille: 'Portefeuille', organiser: 'Organiser / personnaliser',
+  budget: 'Budget', objectifs: "Épargne", dettes: 'Dettes', categories: 'Catégories', comptes: 'Comptes', membres: 'Membres', partage: 'Famille & partage', profil: 'Mon profil', courses: 'Faire les courses', remarques: 'Remarques & suggestions', inbox: 'Boîte de réception', users: 'Utilisateurs', confidentialite: 'Politique de confidentialité', travail: 'Carnet de travail', business: 'Business Pro', portefeuille: 'Portefeuille', organiser: 'Organiser / personnaliser', journal: 'Journal', projet: 'Projet',
 }
 
 function useExportCsv() {
@@ -155,6 +155,7 @@ export function AllSheet({ open, onClose, onAdd, openSub, goCharts }: {
       { label: "Épargne", Icon: PiggyBank, run: go(() => openSub('objectifs')) },
       { label: 'Dettes', Icon: HandCoins, run: go(() => openSub('dettes')) },
       { label: 'Faire les courses', Icon: ShoppingCart, run: go(() => openSub('courses')) },
+      { label: 'Journal', Icon: ScrollText, run: go(() => openSub('journal')) },
       ...(pro.pro ? [
         { label: 'Portefeuille', Icon: Wallet, run: go(() => openSub('portefeuille')) },
         { label: 'Business Pro', Icon: Briefcase, run: go(() => openSub('business')) },

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Ban, Briefcase, Download, NotebookPen, UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet } from 'lucide-react'
+import { Ban, Briefcase, Download, NotebookPen, UsersRound, Inbox, Lightbulb, ShoppingCart, Fingerprint, HandCoins, Home, LogOut, PieChart, PiggyBank, Plus, RefreshCw, Target, UserRound, Wallet, ScrollText } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { DataProvider, useData } from './lib/data'
 import { userInfo } from './lib/prefs'
@@ -10,6 +10,7 @@ import { CarnetSwitcher } from './components/Carnets'
 import { applyTheme, themeForCarnet, useUserTheme } from './lib/theme'
 import TxForm from './components/TxForm'
 import { TxDetailHost, openTx } from './components/TxDetail'
+import { AddMoneyHost } from './components/AddMoney'
 import { runBack } from './lib/back'
 import { App as CapApp } from '@capacitor/app'
 import { AuthScreen, Brand, OnboardingScreen } from './screens/Auth'
@@ -32,6 +33,7 @@ import { GoCodeScreen, hasAccess } from './screens/GoCode'
 import { UsersPage } from './screens/Admin'
 import { usePro, isProjectMember } from './lib/pro'
 import { ProPage } from './screens/Pro'
+import { JournalPage } from './screens/Journal'
 import { AccountsPage, CategoriesPage, MembersPage, SharePage } from './screens/Manage'
 
 type Tab = 'accueil' | 'portefeuille' | 'pro' | 'graphiques' | 'compte'
@@ -253,6 +255,7 @@ function Shell() {
           <SideLink active={sub === 'objectifs'} onClick={() => openSub('objectifs')} Icon={PiggyBank} label="Épargne" />
           <SideLink active={sub === 'dettes'} onClick={() => openSub('dettes')} Icon={HandCoins} label="Dettes" />
           <SideLink active={sub === 'courses'} onClick={() => openSub('courses')} Icon={ShoppingCart} label="Faire les courses" />
+          <SideLink active={sub === 'journal'} onClick={() => openSub('journal')} Icon={ScrollText} label="Journal" />
           {pro.pro && <SideLink active={sub === 'portefeuille'} onClick={() => openSub('portefeuille')} Icon={Wallet} label="Portefeuille" />}
           {pro.pro && <SideLink active={sub === 'travail'} onClick={() => openSub('travail')} Icon={NotebookPen} label="Carnet de travail" />}
         </nav>
@@ -272,11 +275,11 @@ function Shell() {
       </aside>
 
       <main className="mx-auto min-h-full max-w-lg bg-white pb-28 md:max-w-none lg:mx-6 lg:my-6 lg:max-w-none lg:overflow-hidden lg:rounded-[32px] lg:pb-10 lg:shadow-sm 2xl:mx-10">
-        {(sub === 'business' || sub === 'travail') && pro.pro ? (
-          <div className="lg:mx-auto lg:max-w-5xl"><ProPage onBack={closeSub} initial={sub === 'travail' ? 'travail' : 'hub'} /></div>
+        {((sub === 'business' || sub === 'travail') && pro.pro) || sub === 'projet' ? (
+          <div className="lg:mx-auto lg:max-w-5xl"><ProPage onBack={closeSub} initial={sub === 'travail' ? 'travail' : sub === 'projet' ? 'projet' : 'hub'} /></div>
         ) : sub ? (
           <div className="lg:mx-auto lg:max-w-3xl">
-            <Header title={SUB_TITLES[sub]} onBack={closeSub} />
+            {sub !== 'portefeuille' && <Header title={SUB_TITLES[sub]} onBack={closeSub} />}
             {sub === 'budget' && <BudgetPage />}
             {sub === 'objectifs' && <GoalsPage />}
             {sub === 'dettes' && <DebtsPage />}
@@ -290,8 +293,9 @@ function Shell() {
             {sub === 'inbox' && <InboxPage />}
             {sub === 'users' && <UsersPage />}
             {sub === 'confidentialite' && <PrivacyPage />}
-            {sub === 'portefeuille' && <PortefeuilleScreen onManage={openSub} />}
+            {sub === 'portefeuille' && <PortefeuilleScreen onManage={openSub} onBack={closeSub} />}
             {sub === 'organiser' && <OrganiserPage open={openSub} />}
+            {sub === 'journal' && <JournalPage openSub={openSub} />}
           </div>
         ) : (
           <>
@@ -331,6 +335,7 @@ function Shell() {
 
       {exitHint && <div className="pointer-events-none fixed inset-x-0 bottom-28 z-[1000] flex justify-center"><span className="rounded-full bg-ink px-4 py-2 text-sm text-white shadow-lg">Appuie encore sur retour pour quitter</span></div>}
       <TxDetailHost onEdit={(t) => openForm(t)} />
+      <AddMoneyHost />
       <TxForm open={formOpen} onClose={() => setFormOpen(false)} tx={editing} initialKind={formKind} />
       <AllSheet open={allOpen} onClose={() => setAllOpen(false)} onAdd={(k) => openForm(null, k)} openSub={openSub} goCharts={() => setTab('graphiques')} />
 

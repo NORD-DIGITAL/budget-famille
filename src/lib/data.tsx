@@ -3,7 +3,9 @@ import type { ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import { monthKey } from './format'
-import type { Account, Budget, Recurring, RecurringDue, Carnet, Category, Child, Debt, DebtPayment, Goal, Member, Profile, SavingsMove, ShoppingItem, ShoppingList, Tx } from './types'
+import type { Account, Budget, Recurring, RecurringDue, Carnet, Category, Child, Debt, DebtPayment, Goal, InvMove, InvProject, Member, Profile, SavingsMove, ShoppingItem, ShoppingList, Transfer, Tx } from './types'
+import { buildLedger } from './ledger'
+import type { Entry } from './ledger'
 
 const CARNET_KEY = 'bf-carnet'
 const readSel = () => { try { return localStorage.getItem(CARNET_KEY) } catch { return null } }
@@ -37,6 +39,15 @@ interface DataCtx {
   accessReady: boolean
   reloadAccess: () => Promise<void>
   payments: DebtPayment[]
+  transfers: Transfer[]
+  invProjects: InvProject[]
+  invMoves: InvMove[]
+  /** Vrai quand la base a les colonnes/tables de la v3.11 (comptes sur l'épargne, transferts, investissements). */
+  ledgerReady: boolean
+  /** Tous les mouvements d'argent, du plus récent au plus ancien. */
+  ledger: Entry[]
+  /** Solde total (soldes de départ + tous les mouvements) à la fin du jour donné (inclus). */
+  balanceAt: (isoDate: string) => number
   principalId: string | null
   month: string
   setMonth: (m: string) => void
@@ -79,6 +90,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [accessReady, setAccessReady] = useState(false)
   const [payments, setPayments] = useState<DebtPayment[]>([])
+  const [transfers, setTransfers] = useState<Transfer[]>([])
+  const [invProjects, setInvProjects] = useState<InvProject[]>([])
+  const [invMoves, setInvMoves] = useState<InvMove[]>([])
+  const [ledgerReady, setLedgerReady] = useState(false)
   const [month, setMonth] = useState(monthKey(new Date()))
 
   useEffect(() => {
@@ -118,16 +133,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     if (!carnet) return
     const c = carnet.id
-    const all = async <T,>(table: string, cols: string, order: string, asc = true): Promise<T[]> => {
+    const tryAll = async <T,>(table: string, cols: string, order: string, asc = true): Promise<{ rows: T[]; ok: boolean }> => {
       const out: T[] = []
       for (let from = 0; ; from += 1000) {
         const { data, error } = await supabase.from(table).select(cols).eq('carnet_id', c)
           .order(order, { ascending: asc }).range(from, from + 999)
-        if (error || !data) break
+        if (error || !data) return { rows: out, ok: !error }
         out.push(...(data as T[]))
         if (data.length < 1000) break
       }
-      return out
+      return { rows: out, ok: true }
+    }
+    const all = async <T,>(table: string, cols: string, order: string, asc = true): Promise<T[]> => (await tryAll<T>(table, cols, order, asc)).rows
+    // Colonnes ajoutées en v3.11 : si la base n'est pas encore à jour, on relit sans elles
+    const withFallback = async <T,>(table: string, cols: string, extra: string, order: string, asc = true): Promise<{ rows: T[]; ok: boolean }> => {
+      const r = await tryAll<T>(table, `${cols},${extra}`, order, asc)
+      return r.ok ? r : { rows: await all<T>(table, cols, order, asc), ok: false }
     }
     // Dépenses fixes automatiques arrivées à échéance : créées côté serveur (une seule fois par mois)
     await supabase.rpc('recurring_run', { c }).then(() => undefined, () => undefined)
@@ -138,16 +159,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       all<Tx>('transactions', 'id,kind,amount,category_id,account_id,member_id,note,occurred_on,created_at,quantity,unit,child_name,for_month,ref,beneficiary', 'occurred_on', false),
       all<Budget>('budgets', 'id,category_id,monthly_amount', 'created_at'),
       all<Goal>('savings_goals', 'id,name,icon,target_amount,saved_amount,deadline,kind,support,bank,phone,monthly_day,monthly_amount', 'created_at'),
-      all<Debt>('debts', 'id,direction,person,amount,paid,due_date,note', 'created_at'),
+      withFallback<Debt>('debts', 'id,direction,person,amount,paid,due_date,note', 'account_id,lent_on', 'created_at'),
       supabase.from('carnet_users').select('user_id').eq('carnet_id', c),
-      all<SavingsMove>('savings_moves', 'id,goal_id,amount,method,ref,note,moved_on', 'moved_on', false),
-      all<DebtPayment>('debt_payments', 'id,debt_id,amount,method,ref,note,paid_on', 'paid_on', false),
+      withFallback<SavingsMove>('savings_moves', 'id,goal_id,amount,method,ref,note,moved_on', 'account_id', 'moved_on', false),
+      withFallback<DebtPayment>('debt_payments', 'id,debt_id,amount,method,ref,note,paid_on', 'account_id', 'paid_on', false),
       all<ShoppingList>('shopping_lists', 'id,name,status,account_id,member_id,created_at,validated_at,finished_at,planned_on', 'created_at', false),
       all<ShoppingItem>('shopping_items', 'id,list_id,category_id,label,quantity,unit,est_price,final_price,taken,cancelled,position', 'position'),
       all<Recurring>('recurring_expenses', 'id,label,amount,category_id,account_id,member_id,day_of_month,mode,active,last_month,start_month,start_on', 'day_of_month'),
       supabase.rpc('recurring_pending', { c }),
     ])
-    setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d); setMoves(mv); setPayments(pay); setLists(sl); setItems(si); setRecurring(rc); setRecurringDue(((rd.data ?? []) as RecurringDue[]).filter((r) => r.mode === 'valider'))
+    const [tr, ip, im] = await Promise.all([
+      tryAll<Transfer>('account_transfers', 'id,from_account,to_account,amount,moved_on,ref,note,created_at', 'moved_on', false),
+      tryAll<InvProject>('inv_projects', 'id,name,activite,type,type_autre,archived,created_at', 'created_at'),
+      tryAll<InvMove>('inv_moves', 'id,project_id,kind,amount,account_id,moved_on,note,created_at', 'moved_on', false),
+    ])
+    setTransfers(tr.rows); setInvProjects(ip.rows); setInvMoves(im.rows); setLedgerReady(tr.ok && d.ok && mv.ok && pay.ok)
+    setMembers(m); setAccounts(a); setCategories(cat); setTxs(t); setBudgets(b); setGoals(g); setDebts(d.rows); setMoves(mv.rows); setPayments(pay.rows); setLists(sl); setItems(si); setRecurring(rc); setRecurringDue(((rd.data ?? []) as RecurringDue[]).filter((r) => r.mode === 'valider'))
     // Enfants déclarés dans les profils des personnes de ce carnet
     const ids = (cu.data ?? []).map((r: { user_id: string }) => r.user_id)
     if (ids.length) {
@@ -187,13 +214,22 @@ export function DataProvider({ children }: { children: ReactNode }) {
       for (let i = 0; c && i < 10; i++) { parts.unshift(c.name); c = c.parent_id ? catById.get(c.parent_id) : undefined }
       return parts.join(' › ')
     }
+    const accById = new Map(accounts.map((x) => [x.id, x]))
+    const ledger = buildLedger({ txs, moves, goals, payments, debts, transfers, invProjects, invMoves, accName: (id) => (id ? accById.get(id)?.name ?? 'Compte supprimé' : 'Sans compte') })
+    const start = accounts.reduce((a, x) => a + (x.initial_balance ?? 0), 0)
+    const balanceAt = (iso: string) => {
+      let b = start
+      for (const e of ledger) if (e.date <= iso) for (const l of e.legs) b += l.amount
+      return b
+    }
     return {
+      transfers, invProjects, invMoves, ledgerReady, ledger, balanceAt,
       session, authReady, carnets, carnet, carnetReady, switchCarnet, profile, profileReady, reloadProfile, familyChildren,
       members, accounts, categories, txs, budgets, recurring, recurringDue, goals, debts, moves, payments, principalId, lists, items, isAdmin, expiresAt, accessReady, reloadAccess, month, setMonth, reload, loadCarnet, cur: carnet?.currency ?? 'Ar',
-      catById, accById: new Map(accounts.map((x) => [x.id, x])), memById: new Map(members.map((x) => [x.id, x])),
+      catById, accById, memById: new Map(members.map((x) => [x.id, x])),
       childrenOf, rootOf, catPath,
     }
-  }, [session, authReady, carnets, carnet, carnetReady, profile, profileReady, reloadProfile, familyChildren, members, accounts, categories, txs, budgets, recurring, recurringDue, goals, debts, moves, payments, principalId, lists, items, isAdmin, expiresAt, accessReady, reloadAccess, month, reload, loadCarnet])
+  }, [session, authReady, carnets, carnet, carnetReady, profile, profileReady, reloadProfile, familyChildren, members, accounts, categories, txs, budgets, recurring, recurringDue, goals, debts, moves, payments, transfers, invProjects, invMoves, ledgerReady, principalId, lists, items, isAdmin, expiresAt, accessReady, reloadAccess, month, reload, loadCarnet])
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

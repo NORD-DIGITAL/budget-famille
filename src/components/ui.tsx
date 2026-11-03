@@ -69,11 +69,11 @@ export function BareIcon({ name, emoji, size = 30, inherit }: { name: string; em
 }
 
 /** Pastille d'icône : icône au trait noire sur fond crème, point de couleur facultatif. */
-export function IconTile({ name, emoji, color, size = 44, active }: { name: string; emoji?: string; color?: string; size?: number; active?: boolean }) {
-  const I = iconFor(name, emoji)
+export function IconTile({ name, emoji, color, size = 44, active, icon }: { name: string; emoji?: string; color?: string; size?: number; active?: boolean; icon?: ReactNode }) {
+  const I = icon ? null : iconFor(name, emoji)
   return (
     <div className={`relative flex shrink-0 items-center justify-center rounded-2xl border ${active ? 'border-sun-500 bg-sun-100' : 'border-cream-line bg-cream-tile'}`} style={{ width: size, height: size }}>
-      {I ? <I size={size * 0.48} strokeWidth={1.7} className="text-ink" /> : <span style={{ fontSize: size * 0.46 }}>{emoji && !emoji.startsWith('i:') ? emoji : '📦'}</span>}
+      {icon ? icon : I ? <I size={size * 0.48} strokeWidth={1.7} className="text-ink" /> : <span style={{ fontSize: size * 0.46 }}>{emoji && !emoji.startsWith('i:') ? emoji : '📦'}</span>}
       {color && <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white" style={{ background: color }} />}
     </div>
   )

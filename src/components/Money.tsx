@@ -17,6 +17,28 @@ export function MethodPicker({ value, onChange }: { value: string | null; onChan
   )
 }
 
+/** Moyen « historique » déduit du nom du compte (pour les anciennes colonnes method). */
+export const methodOfAccount = (name: string | undefined) => {
+  const n = (name ?? '').toLowerCase()
+  return /mvola/.test(n) ? 'mvola' : /orange/.test(n) ? 'orange' : /airtel/.test(n) ? 'airtel' : /banque|bank|bni|boa|bfv|bmoi|sbm/.test(n) ? 'banque' : 'especes'
+}
+export const isMobileMoneyAccount = (name: string | undefined) => /mvola|orange|airtel/i.test(name ?? '')
+
+/** Choix d'un compte du portefeuille (obligatoire : sans choix, l'appelant affiche une erreur). */
+export function AccountPicker({ accounts, value, onChange, exclude, extra }: {
+  accounts: { id: string; name: string; archived: boolean }[]; value: string | null; onChange: (v: string) => void
+  exclude?: string | null; extra?: [string, string][]
+}) {
+  return (
+    <div className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-1">
+      {accounts.filter((a) => (!a.archived || a.id === value) && a.id !== exclude).map((a) => (
+        <button key={a.id} type="button" onClick={() => onChange(a.id)} className={chip(value === a.id)}>{a.name}</button>
+      ))}
+      {(extra ?? []).map(([k, l]) => <button key={k} type="button" onClick={() => onChange(k)} className={chip(value === k)}>{l}</button>)}
+    </div>
+  )
+}
+
 /** Champ facultatif « Référence de transaction » pour MVola / Orange Money. */
 export function RefField({ id = 'ref', value, onChange }: { id?: string; value: string; onChange: (v: string) => void }) {
   return (

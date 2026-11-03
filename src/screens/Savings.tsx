@@ -7,7 +7,7 @@ import { deleteEntityPhotos, uploadPhoto } from '../lib/attachments'
 import type { Debt, Goal, GoalKind } from '../lib/types'
 import { Empty, ICON_SET, IconTile, Progress, Segmented, Sheet } from '../components/ui'
 import { DateField } from '../components/DatePicker'
-import { isMobileMoney, MethodPicker, PhotoPicker, RefField } from '../components/Money'
+import { AccountPicker, isMobileMoney, isMobileMoneyAccount, methodOfAccount, PhotoPicker, RefField } from '../components/Money'
 import { MoveHistory } from '../components/MoveHistory'
 import type { HPatch, HRow } from '../components/MoveHistory'
 import { Pencil } from 'lucide-react'
@@ -38,7 +38,7 @@ type GoalEdit = {
   g: Goal | null; kind: GoalKind; name: string; icon: string; target: string; deadline: string
   support: Goal['support']; bank: string; prefix: string; phone: string; monthly: boolean; day: string; mAmount: string
 }
-type MoveEdit = { g: Goal; sign: 1 | -1; amount: string; date: string; method: string; ref: string; note: string; files: File[] }
+type MoveEdit = { g: Goal; sign: 1 | -1; amount: string; date: string; acc: string | null; ref: string; note: string; files: File[] }
 
 function IconGrid({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -52,7 +52,7 @@ function IconGrid({ value, onChange }: { value: string; onChange: (v: string) =>
 }
 
 export function GoalsPage() {
-  const { goals, moves, cur, carnet, reload } = useData()
+  const { goals, moves, cur, carnet, reload, accounts, ledgerReady } = useData()
   const [edit, setEdit] = useState<GoalEdit | null>(null)
   const [mv, setMv] = useState<MoveEdit | null>(null)
   const [detail, setDetail] = useState<Goal | null>(null)
@@ -102,17 +102,21 @@ export function GoalsPage() {
 
   const openMove = (g: Goal, sign: 1 | -1) => {
     setErr('')
-    setMv({ g, sign, amount: sign === 1 && g.monthly_amount ? g.monthly_amount.toLocaleString('fr-FR') : '', date: todayISO(), method: g.support ?? 'especes', ref: '', note: '', files: [] })
+    const acc = accounts.find((a) => !a.archived && g.support && methodOfAccount(a.name) === g.support)?.id ?? null
+    setMv({ g, sign, amount: sign === 1 && g.monthly_amount ? g.monthly_amount.toLocaleString('fr-FR') : '', date: todayISO(), acc, ref: '', note: '', files: [] })
   }
   const saveMove = async () => {
     if (!mv) return
     const n = parseAmount(mv.amount)
     if (!n) return setErr('Indique un montant.')
     if (mv.sign === -1 && n > mv.g.saved_amount) return setErr(`Tu ne peux pas retirer plus que ${fmt(mv.g.saved_amount, cur)}.`)
+    if (!mv.acc) return setErr(mv.sign === 1 ? "Choisis le compte d'où part l'argent épargné." : "Choisis le compte qui reçoit l'argent retiré.")
     setBusy(true)
+    const accName = accounts.find((a) => a.id === mv.acc)?.name
     const { data, error } = await supabase.from('savings_moves').insert({
-      carnet_id: carnet!.id, goal_id: mv.g.id, amount: mv.sign * n, moved_on: mv.date, method: mv.method,
-      ref: isMobileMoney(mv.method) && mv.ref.trim() ? mv.ref.trim().toUpperCase() : null, note: mv.note.trim() || null,
+      carnet_id: carnet!.id, goal_id: mv.g.id, amount: mv.sign * n, moved_on: mv.date, method: methodOfAccount(accName),
+      ...(ledgerReady ? { account_id: mv.acc } : {}),
+      ref: isMobileMoneyAccount(accName) && mv.ref.trim() ? mv.ref.trim().toUpperCase() : null, note: mv.note.trim() || null,
     }).select('id').single()
     if (!error) {
       await supabase.from('savings_goals').update({ saved_amount: Math.max(0, mv.g.saved_amount + mv.sign * n) }).eq('id', mv.g.id)
@@ -244,8 +248,8 @@ export function GoalsPage() {
           <div className="space-y-4">
             <input className="input tabular text-center text-2xl font-bold" inputMode="numeric" autoFocus placeholder={`0 ${cur}`} aria-label="Montant" value={mv.amount} onChange={(e) => { const n = parseAmount(e.target.value); setMv({ ...mv, amount: n ? n.toLocaleString('fr-FR') : '' }) }} />
             <div><p className="label">Date</p><DateField value={mv.date} onChange={(v) => setMv({ ...mv, date: v })} /></div>
-            <div><p className="label">Moyen</p><MethodPicker value={mv.method} onChange={(v) => setMv({ ...mv, method: v })} /></div>
-            {isMobileMoney(mv.method) && <RefField value={mv.ref} onChange={(v) => setMv({ ...mv, ref: v })} />}
+            <div><p className="label">{mv.sign === 1 ? "Compte d'où part l'argent" : "Compte qui reçoit l'argent"} <span className="text-red-500">*</span></p><AccountPicker accounts={accounts} value={mv.acc} onChange={(v) => setMv({ ...mv, acc: v })} /></div>
+            {isMobileMoneyAccount(accounts.find((a) => a.id === mv.acc)?.name) && <RefField value={mv.ref} onChange={(v) => setMv({ ...mv, ref: v })} />}
             <div><label className="label" htmlFor="mv-note">Note</label><input id="mv-note" className="input" value={mv.note} onChange={(e) => setMv({ ...mv, note: e.target.value })} /></div>
             <PhotoPicker files={mv.files} onChange={(f) => setMv({ ...mv, files: f })} />
             {err && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
@@ -298,11 +302,11 @@ export function GoalsPage() {
 
 /* ---------------------------------------------------------------- Dettes */
 
-type DebtEdit = { d: Debt | null; direction: Debt['direction']; person: string; amount: string; due: string; note: string }
-type PayEdit = { d: Debt; amount: string; date: string; method: string; ref: string; note: string; files: File[] }
+type DebtEdit = { d: Debt | null; direction: Debt['direction']; person: string; amount: string; due: string; note: string; acc: string | null; date: string }
+type PayEdit = { d: Debt; amount: string; date: string; acc: string | null; ref: string; note: string; files: File[] }
 
 export function DebtsPage() {
-  const { debts, payments, cur, carnet, reload } = useData()
+  const { debts, payments, cur, carnet, reload, accounts, ledgerReady } = useData()
   const [tab, setTab] = useState<Debt['direction']>('je_dois')
   const [edit, setEdit] = useState<DebtEdit | null>(null)
   const [pay, setPay] = useState<PayEdit | null>(null)
@@ -324,7 +328,10 @@ export function DebtsPage() {
     if (!edit.person.trim()) return setErr("Indique la personne ou l'organisme.")
     if (!amount) return setErr('Indique le montant.')
     const row = { direction: edit.direction, person: edit.person.trim(), amount, due_date: edit.due || null, note: edit.note.trim() || null }
-    const { error } = edit.d ? await supabase.from('debts').update(row).eq('id', edit.d.id) : await supabase.from('debts').insert({ ...row, carnet_id: carnet!.id })
+    // Nouvelle dette : l'argent prêté sort d'un compte, l'argent emprunté y entre
+    if (!edit.d && ledgerReady && !edit.acc) return setErr(edit.direction === 'je_dois' ? "Choisis le compte qui a reçu l'argent emprunté." : "Choisis le compte d'où part l'argent prêté.")
+    const { error } = edit.d ? await supabase.from('debts').update(row).eq('id', edit.d.id)
+      : await supabase.from('debts').insert({ ...row, carnet_id: carnet!.id, ...(ledgerReady ? { account_id: edit.acc, lent_on: edit.date } : {}) })
     if (error) return setErr(error.message)
     await reload(); setEdit(null)
   }
@@ -339,10 +346,13 @@ export function DebtsPage() {
     if (!pay) return
     const n = parseAmount(pay.amount)
     if (!n) return setErr('Indique un montant.')
+    if (!pay.acc) return setErr(pay.d.direction === 'je_dois' ? "Choisis le compte d'où part le remboursement." : "Choisis le compte qui reçoit l'argent.")
     setBusy(true)
+    const accName = accounts.find((a) => a.id === pay.acc)?.name
     const { data, error } = await supabase.from('debt_payments').insert({
-      carnet_id: carnet!.id, debt_id: pay.d.id, amount: n, paid_on: pay.date, method: pay.method,
-      ref: isMobileMoney(pay.method) && pay.ref.trim() ? pay.ref.trim().toUpperCase() : null, note: pay.note.trim() || null,
+      carnet_id: carnet!.id, debt_id: pay.d.id, amount: n, paid_on: pay.date, method: methodOfAccount(accName),
+      ...(ledgerReady ? { account_id: pay.acc } : {}),
+      ref: isMobileMoneyAccount(accName) && pay.ref.trim() ? pay.ref.trim().toUpperCase() : null, note: pay.note.trim() || null,
     }).select('id').single()
     if (!error) {
       await supabase.from('debts').update({ paid: Math.min(pay.d.amount, pay.d.paid + n) }).eq('id', pay.d.id)
@@ -354,8 +364,8 @@ export function DebtsPage() {
   }
   const openEdit = (d: Debt | null) => {
     setErr(''); setConfirmDel(false)
-    setEdit(d ? { d, direction: d.direction, person: d.person, amount: d.amount.toLocaleString('fr-FR'), due: d.due_date ?? '', note: d.note ?? '' }
-      : { d: null, direction: tab, person: '', amount: '', due: '', note: '' })
+    setEdit(d ? { d, direction: d.direction, person: d.person, amount: d.amount.toLocaleString('fr-FR'), due: d.due_date ?? '', note: d.note ?? '', acc: d.account_id ?? null, date: d.lent_on ?? todayISO() }
+      : { d: null, direction: tab, person: '', amount: '', due: '', note: '', acc: null, date: todayISO() })
   }
   const late = (d: Debt) => d.due_date && d.due_date < todayISO() && d.paid < d.amount
 
@@ -375,7 +385,7 @@ export function DebtsPage() {
       <Progress value={d.paid} max={d.amount} color={d.paid >= d.amount ? '#10B981' : undefined} />
       <div className="mt-3 flex gap-2">
         {d.paid < d.amount && (
-          <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), method: 'especes', ref: '', note: '', files: [] }) }} className="btn-primary flex-1 whitespace-nowrap px-3 py-2.5 text-sm">
+          <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), acc: null, ref: '', note: '', files: [] }) }} className="btn-primary flex-1 whitespace-nowrap px-3 py-2.5 text-sm">
             {d.direction === 'je_dois' ? '+ Remboursement' : '+ Paiement reçu'}
           </button>
         )}
@@ -403,6 +413,13 @@ export function DebtsPage() {
             <Segmented value={edit.direction} onChange={(v) => setEdit({ ...edit, direction: v })} options={[['je_dois', 'Je dois'], ['on_me_doit', 'On me doit']]} />
             <div><label className="label" htmlFor="debt-person">{edit.direction === 'je_dois' ? 'À qui ?' : 'Qui ?'}</label><input id="debt-person" className="input" placeholder="Ex : Rakoto, MVola Avance, épicerie" value={edit.person} onChange={(e) => setEdit({ ...edit, person: e.target.value })} /></div>
             <div><label className="label" htmlFor="debt-amount">Montant total ({cur})</label><input id="debt-amount" className="input tabular" inputMode="numeric" value={edit.amount} onChange={(e) => { const n = parseAmount(e.target.value); setEdit({ ...edit, amount: n ? n.toLocaleString('fr-FR') : '' }) }} /></div>
+            {!edit.d && ledgerReady && (
+              <>
+                <div><p className="label">{edit.direction === 'je_dois' ? "Compte qui a reçu l'argent emprunté" : "Compte d'où part l'argent prêté"} <span className="text-red-500">*</span></p>
+                  <AccountPicker accounts={accounts} value={edit.acc} onChange={(v) => setEdit({ ...edit, acc: v })} /></div>
+                <div><p className="label">{edit.direction === 'je_dois' ? "Date de l'emprunt" : 'Date du prêt'}</p><DateField value={edit.date} onChange={(v) => setEdit({ ...edit, date: v })} /></div>
+              </>
+            )}
             <div><p className="label">Échéance (facultatif)</p><DateField value={edit.due} clearable placeholder="Aucune échéance" onChange={(v) => setEdit({ ...edit, due: v })} /></div>
             <div><label className="label" htmlFor="debt-note">Note</label><input id="debt-note" className="input" value={edit.note} onChange={(e) => setEdit({ ...edit, note: e.target.value })} /></div>
             {edit.d && <p className="text-sm text-ink-muted">Déjà remboursé : <b className="tabular text-ink">{fmt(edit.d.paid, cur)}</b></p>}
@@ -422,8 +439,8 @@ export function DebtsPage() {
             <input className="input tabular text-center text-2xl font-semibold" inputMode="numeric" autoFocus placeholder={`0 ${cur}`} aria-label="Montant" value={pay.amount} onChange={(e) => { const n = parseAmount(e.target.value); setPay({ ...pay, amount: n ? n.toLocaleString('fr-FR') : '' }) }} />
             <button onClick={() => setPay({ ...pay, amount: leftOf(pay.d).toLocaleString('fr-FR') })} className="btn-ghost w-full py-2.5 text-sm">Tout rembourser</button>
             <div><p className="label">Date</p><DateField value={pay.date} onChange={(v) => setPay({ ...pay, date: v })} /></div>
-            <div><p className="label">Moyen</p><MethodPicker value={pay.method} onChange={(v) => setPay({ ...pay, method: v })} /></div>
-            {isMobileMoney(pay.method) && <RefField value={pay.ref} onChange={(v) => setPay({ ...pay, ref: v })} />}
+            <div><p className="label">{pay.d.direction === 'je_dois' ? "Compte d'où part le remboursement" : "Compte qui reçoit l'argent"} <span className="text-red-500">*</span></p><AccountPicker accounts={accounts} value={pay.acc} onChange={(v) => setPay({ ...pay, acc: v })} /></div>
+            {isMobileMoneyAccount(accounts.find((a) => a.id === pay.acc)?.name) && <RefField value={pay.ref} onChange={(v) => setPay({ ...pay, ref: v })} />}
             <div><label className="label" htmlFor="pay-note">Note</label><input id="pay-note" className="input" value={pay.note} onChange={(e) => setPay({ ...pay, note: e.target.value })} /></div>
             <PhotoPicker files={pay.files} onChange={(f) => setPay({ ...pay, files: f })} />
             {err && <p className="rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-600">{err}</p>}
@@ -447,7 +464,7 @@ export function DebtsPage() {
                   </div>
                   <div className="mt-3"><Progress value={d.paid} max={d.amount} color={d.paid >= d.amount ? '#10B981' : undefined} /></div>
                   <div className="mt-3 flex gap-2">
-                    {d.paid < d.amount && <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), method: 'especes', ref: '', note: '', files: [] }) }} className="btn-primary flex-1 whitespace-nowrap py-2 text-sm">{d.direction === 'je_dois' ? '+ Remboursement' : '+ Paiement reçu'}</button>}
+                    {d.paid < d.amount && <button onClick={() => { setErr(''); setPay({ d, amount: '', date: todayISO(), acc: null, ref: '', note: '', files: [] }) }} className="btn-primary flex-1 whitespace-nowrap py-2 text-sm">{d.direction === 'je_dois' ? '+ Remboursement' : '+ Paiement reçu'}</button>}
                     <button onClick={() => openEdit(d)} className="btn-ghost flex-1 bg-white py-2 text-sm"><Pencil size={16} /> Modifier</button>
                   </div>
                 </div>

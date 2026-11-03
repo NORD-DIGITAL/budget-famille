@@ -6,6 +6,7 @@ import { fmt } from '../lib/format'
 import type { Kind, Tx } from '../lib/types'
 import { IconTile, Sheet } from './ui'
 import { fmtDateLong, fmtMonthLong } from './DatePicker'
+import { AccountHistorySheet } from './AccountHistory'
 
 /* ---------- Petite mémoire partagée : fiche d'opération et historique de catégorie ---------- */
 type Sel = { type: 'cat'; id: string; kind: Kind } | { type: 'acc' | 'mem'; id: string }
@@ -37,7 +38,8 @@ export function TxDetailHost({ onEdit }: { onEdit: (t: Tx) => void }) {
   const { tx, cat } = useStore()
   return (
     <>
-      <CatHistorySheet sel={cat} onClose={() => set({ cat: null })} />
+      <CatHistorySheet sel={cat?.type === 'acc' ? null : cat} onClose={() => set({ cat: null })} />
+      <AccountHistorySheet id={cat?.type === 'acc' ? cat.id : null} onClose={() => set({ cat: null })} />
       <TxDetailSheet tx={tx} onClose={() => set({ tx: null })} onEdit={(t) => { set({ tx: null }); onEdit(t) }} />
     </>
   )

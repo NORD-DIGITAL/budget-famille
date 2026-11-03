@@ -13,6 +13,9 @@ import { AccueilAside } from './AccueilAside'
 import { MonthBar, fmtMonthLong } from '../components/DatePicker'
 import { RecurringDueCard } from '../components/Recurring'
 import type { SubPage } from './Plus'
+import { effect } from '../lib/ledger'
+import type { Entry } from '../lib/ledger'
+import { LedgerRow, openEntry } from '../components/LedgerRow'
 import { usePro } from '../lib/pro'
 import { ProGlance } from './Pro'
 
@@ -26,7 +29,7 @@ export type Shortcut = { label: string; Icon: LucideIcon; run: () => void }
 export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAll, onRefresh, goPro }: {
   goPro: () => void; onRefresh: () => Promise<void>; onEdit: (t: Tx) => void; onAdd: (k: Kind) => void; openSub: (p: SubPage) => void; goCharts: () => void; openAll: () => void; goAccount?: () => void
 }) {
-  const { txs, month, catById, accById, memById, cur, session, profile, catPath, goals, moves, rootOf, categories, accounts, members } = useData()
+  const { txs, month, catById, accById, memById, cur, session, profile, catPath, goals, moves, rootOf, categories, accounts, members, ledger, balanceAt } = useData()
   const pro = usePro(session)
   const due = dueReminders(goals, moves)
   const [hidden, toggleHidden] = useHidden()
@@ -44,13 +47,11 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
   const monthTx = useMemo(() => txs.filter((t) => t.occurred_on.startsWith(month)), [txs, month])
   const inc = monthTx.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
   const exp = monthTx.filter((t) => t.kind === 'depense').reduce((a, t) => a + t.amount, 0)
-  // Solde cumulé : soldes de départ des comptes + tout ce qui s'est passé avant ce mois (report) + le mois
-  const report = useMemo(() => {
-    const first = `${month}-01`
-    return accounts.reduce((a, x) => a + (x.initial_balance ?? 0), 0)
-      + txs.filter((t) => t.occurred_on < first).reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)
-  }, [accounts, txs, month])
-  const solde = report + inc - exp
+  // Solde cumulé : soldes de départ des comptes + tous les mouvements jusqu'à la fin du mois affiché
+  // Épargne, dettes, investissements du mois (hors opérations) : ils font aussi bouger le solde
+  const monthOthers = useMemo(() => ledger.filter((e) => e.source !== 'operation' && e.date.startsWith(month)), [ledger, month])
+  const otherNet = monthOthers.reduce((a, e) => a + effect(e), 0)
+  const solde = useMemo(() => balanceAt(`${month}-31`), [balanceAt, month])
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
@@ -62,11 +63,20 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
     })
   }, [txs, monthTx, q, catPath, f, rootOf])
 
+  // Mouvements hors opérations (épargne, dettes, transferts, investissements) : filtres jour et compte seulement
+  const otherList = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    if (s) return ledger.filter((e) => e.source !== 'operation' && (e.title + ' ' + e.detail).toLowerCase().includes(s))
+    if (f.kind !== 'tout' || f.cat || f.mem) return []
+    return monthOthers.filter((e) => (!f.day || e.date === f.day) && (!f.acc || e.legs.some((l) => l.account_id === f.acc)))
+  }, [ledger, monthOthers, q, f])
   const groups = useMemo(() => {
-    const m = new Map<string, Tx[]>()
-    for (const t of list) { if (!m.has(t.occurred_on)) m.set(t.occurred_on, []); m.get(t.occurred_on)!.push(t) }
-    return [...m.entries()]
-  }, [list])
+    const m = new Map<string, { txs: Tx[]; others: Entry[] }>()
+    const at = (d: string) => { if (!m.has(d)) m.set(d, { txs: [], others: [] }); return m.get(d)! }
+    for (const t of list) at(t.occurred_on).txs.push(t)
+    for (const e of otherList) at(e.date).others.push(e)
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1))
+  }, [list, otherList])
 
   const mask = (n: string) => (hidden ? '••••••' : n)
   const fInc = list.filter((t) => t.kind === 'revenu').reduce((a, t) => a + t.amount, 0)
@@ -147,6 +157,11 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
                 <p className="tabular mt-0.5 font-semibold">{mask(fmt(exp, cur))}</p>
               </div>
             </div>
+            {otherNet !== 0 && (
+              <button onClick={() => openSub('journal')} className="mx-auto mt-2 flex w-fit items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs text-ink">
+                Épargne, dettes, investissements : <b className="tabular">{mask(signed(otherNet, cur))}</b>
+              </button>
+            )}
           </section>
 
           {/* Raccourcis */}
@@ -226,8 +241,8 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
         )}
         {groups.length === 0 && <Empty icon="📒" text={q ? 'Aucun résultat.' : nF ? 'Aucune opération pour ces filtres.' : 'Aucune opération ce mois-ci. Touche le bouton jaune pour en ajouter une.'} />}
         <div className="space-y-5">
-          {groups.map(([day, items]) => {
-            const net = items.reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0)
+          {groups.map(([day, { txs: items, others }]) => {
+            const net = items.reduce((a, t) => a + (t.kind === 'revenu' ? t.amount : -t.amount), 0) + others.reduce((a, e) => a + effect(e), 0)
             return (
               <div key={day}>
                 <div className="mb-1 flex justify-between text-xs text-ink-muted">
@@ -255,6 +270,7 @@ export default function AccueilScreen({ onEdit, onAdd, openSub, goCharts, openAl
                     </button>
                   )
                 })}
+                {others.map((e) => <LedgerRow key={e.key} e={e} hidden={hidden} onClick={() => openEntry(e, openSub)} />)}
               </div>
             )
           })}

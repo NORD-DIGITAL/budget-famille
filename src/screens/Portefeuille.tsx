@@ -1,5 +1,6 @@
 import { openAccHistory, openMemHistory } from '../components/TxDetail'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Plus } from 'lucide-react'
+import { openAddMoney } from '../components/AddMoney'
 import { useMemo } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { useData } from '../lib/data'
@@ -8,20 +9,20 @@ import { useHidden } from '../lib/prefs'
 import { Header, IconTile } from '../components/ui'
 import { LOW } from './Carnet'
 
-export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'comptes' | 'membres') => void }) {
-  const { accounts, members, txs, cur, month, carnet } = useData()
+export default function PortefeuilleScreen({ onManage, onBack }: { onManage: (p: 'comptes' | 'membres') => void; onBack?: () => void }) {
+  const { accounts, members, txs, cur, month, carnet, ledger } = useData()
   const [hidden, toggleHidden] = useHidden()
   const mask = (s: string) => (hidden ? '••••••' : s)
 
   const balances = useMemo(() => {
     const m = new Map<string | null, number>()
     for (const a of accounts) m.set(a.id, a.initial_balance)
-    for (const t of txs) {
-      const k = t.account_id && m.has(t.account_id) ? t.account_id : null
-      m.set(k, (m.get(k) ?? 0) + (t.kind === 'revenu' ? t.amount : -t.amount))
+    for (const e of ledger) for (const l of e.legs) {
+      const k = l.account_id && m.has(l.account_id) ? l.account_id : null
+      m.set(k, (m.get(k) ?? 0) + l.amount)
     }
     return m
-  }, [accounts, txs])
+  }, [accounts, ledger])
   const total = [...balances.values()].reduce((a, b) => a + b, 0)
   const unassigned = balances.get(null) ?? 0
 
@@ -37,7 +38,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
 
   return (
     <>
-      <Header title="Portefeuille" />
+      <Header title="Portefeuille" onBack={onBack} />
       <div className="space-y-7 px-5 pb-6 lg:grid lg:grid-cols-2 lg:gap-x-10 lg:space-y-0 lg:gap-y-8 lg:px-8">
         {/* Carte valeur nette */}
         <div className={`relative overflow-hidden rounded-[28px] p-6 lg:col-span-2 transition-colors ${total < LOW ? 'bg-red-500 text-white' : 'bg-sun-500'}`}>
@@ -62,12 +63,15 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
             {accounts.filter((a) => !a.archived).map((a) => {
               const b = balances.get(a.id) ?? 0
               return (
-                <button key={a.id} onClick={() => openAccHistory(a.id)} className="flex w-full items-center gap-4 border-b border-neutral-100 py-3.5 text-left last:border-0">
-                  <IconTile name={a.name} emoji={a.icon} />
-                  <span className="flex-1 text-[1.0625rem]">{a.name}</span>
-                  <span className={`tabular font-semibold ${!hidden && b < 0 ? 'text-red-600' : !hidden && b < LOW ? 'text-orange-500' : ''}`}>{mask(fmt(b, cur))}</span>
-                  <ChevronRight size={18} className="shrink-0 text-neutral-400" />
-                </button>
+                <div key={a.id} className="flex items-center gap-2 border-b border-neutral-100 last:border-0">
+                  <button onClick={() => openAccHistory(a.id)} className="flex min-w-0 flex-1 items-center gap-4 py-3.5 text-left">
+                    <IconTile name={a.name} emoji={a.icon} />
+                    <span className="min-w-0 flex-1 truncate text-[1.0625rem]">{a.name}</span>
+                    <span className={`tabular font-semibold ${!hidden && b < 0 ? 'text-red-600' : !hidden && b < LOW ? 'text-orange-500' : ''}`}>{mask(fmt(b, cur))}</span>
+                    <ChevronRight size={18} className="shrink-0 text-neutral-400" />
+                  </button>
+                  <button onClick={() => openAddMoney(a.id)} aria-label={`Ajouter sur ${a.name}`} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink text-white"><Plus size={18} /></button>
+                </div>
               )
             })}
             {unassigned !== 0 && (
@@ -78,7 +82,7 @@ export default function PortefeuilleScreen({ onManage }: { onManage: (p: 'compte
               </div>
             )}
           </div>
-          <p className="mt-2 text-xs text-ink-muted">Astuce : indique le solde de départ de chaque compte dans « Gérer ».</p>
+          <p className="mt-2 text-xs text-ink-muted">« + » : ajoute de l'argent sur un compte en choisissant d'où il vient (un autre compte ou un revenu). Le solde de départ de chaque compte se règle dans « Gérer ».</p>
         </section>
 
         <section>
