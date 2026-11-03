@@ -97,3 +97,12 @@ Application de budget familial **Budget.Go.Family by NORD DIGITAL** (propriétai
 - Mode hors ligne (saisie sans internet, synchronisation au retour) : proposé, pas lancé.
 - Publication sur le Google Play Store : suggérée.
 - Décisions Go Code non confirmées : 30 jours offerts aux comptes existants, un code par personne et non par carnet.
+
+## Mouvements, Journal et Investir (v3.11.0)
+- **Grand livre** (`src/lib/ledger.ts`) : opérations, épargne, dettes, transferts et investissements au même format (« jambes » compte/montant). Le solde (accueil, Graphiques, Portefeuille, Journal) = soldes de départ + toutes les jambes (`balanceAt` dans `data.tsx`).
+- **Épargne et dettes** : compte obligatoire sur chaque versement/retrait et remboursement (`account_id`). Nouvelle dette : compte + date (`lent_on`) — prêter = sortie, emprunter = entrée. Anciennes dettes (sans `lent_on`) : la création ne bouge pas le solde. Anciens versements/remboursements rattachés au compte du même nom par la migration.
+- **Opérations du mois** : affichent aussi épargne, dettes, transferts et investissements ; ligne « Épargne, dettes, investissements » sous Revenus/Dépenses.
+- **Journal** (`src/screens/Journal.tsx`) : par mois ou par année, filtres type et compte, soldes de début/fin, entrées/sorties. Voir tout › Suivre et barre latérale.
+- **Portefeuille** : bouton « + » sur chaque compte (`src/components/AddMoney.tsx`), provenance obligatoire (autre compte → `account_transfers`, ou « Revenu » → opération de revenu). Historique d'un compte = toutes ses entrées et sorties (`AccountHistory.tsx`).
+- **Business Pro › Investir** (`src/screens/Invest.tsx`) : projets `inv_projects` (nom, activité, type vente/partenariat/autre) et mouvements `inv_moves` : capital (sort d'un compte), dépense et revenu (restent dans le projet), versement (vers un compte). En haut du projet : Capital, Dépenses, Revenus, disponible et résultat. Visible pour les membres du carnet, aussi dans le Journal.
+- SQL : `supabase/mouvements.sql` (après `paiements.sql`), appliqué le 03/11/2026.
